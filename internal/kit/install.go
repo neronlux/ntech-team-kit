@@ -83,19 +83,13 @@ func PerformInstall(opts InstallOptions) error {
 	}
 
 	manifestPath := filepath.Join(opts.ConfigDir, ".ntech-team-kit-manifest")
+	var manifestLines []string
 
 	// Create top-level directories (pure Go, no shell brace expansion issues)
 	dirs := []string{"skills", "agents", "commands", "rules", "plugins"}
 	for _, d := range dirs {
 		if err := os.MkdirAll(filepath.Join(opts.ConfigDir, d), 0o755); err != nil {
 			return fmt.Errorf("failed to create %s: %w", d, err)
-		}
-	}
-
-	// Truncate manifest
-	if !opts.DryRun {
-		if err := os.WriteFile(manifestPath, []byte{}, 0o644); err != nil {
-			return fmt.Errorf("failed to initialize manifest: %w", err)
 		}
 	}
 
@@ -131,15 +125,7 @@ func PerformInstall(opts InstallOptions) error {
 			}
 		}
 
-		// Append to manifest
-		f, err := os.OpenFile(manifestPath, os.O_APPEND|os.O_WRONLY|os.O_CREATE, 0o644)
-		if err != nil {
-			return err
-		}
-		defer f.Close()
-		if _, err := fmt.Fprintf(f, "%s\n", dest); err != nil {
-			return err
-		}
+		manifestLines = append(manifestLines, dest)
 		return nil
 	}
 
@@ -207,6 +193,13 @@ func PerformInstall(opts InstallOptions) error {
 	// Ensure @opencode-ai/plugin dependency
 	if err := ensurePluginDependency(opts.ConfigDir, opts.DryRun); err != nil {
 		return err
+	}
+
+	// Write manifest atomically (collect, then write temp + rename)
+	if !opts.DryRun && len(manifestLines) > 0 {
+		if err := writeManifest(manifestPath, manifestLines); err != nil {
+			return fmt.Errorf("failed to write manifest: %w", err)
+		}
 	}
 
 	if !opts.DryRun {
@@ -324,6 +317,32 @@ func ensurePluginDependency(ocDir string, dryRun bool) error {
 	// backup
 	_ = os.WriteFile(pkgPath+".ntech-team-kit.bak", data, 0o644)
 	return os.WriteFile(pkgPath, b, 0o644)
+}
+
+// writeManifest writes the manifest atomically using temp + rename.
+func writeManifest(path string, lines []string) error {
+	data := strings.Join(lines, "\n") + "\n"
+
+	tmp, err := os.CreateTemp(filepath.Dir(path), ".ntech-team-kit-manifest.tmp-*")
+	if err != nil {
+		return err
+	}
+	tmpName := tmp.Name()
+	defer os.Remove(tmpName)
+
+	if _, err := tmp.WriteString(data); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	return os.Rename(tmpName, path)
 }
 
 // logPrefix prints consistent with the old install.sh
