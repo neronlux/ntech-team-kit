@@ -71,7 +71,7 @@ jobs:
   auto-release:
     runs-on: ubuntu-latest
     needs: release-needed
-    if: needs.release-needed.outputs.should_release == 'true' || github.event_name == 'workflow_dispatch'
+    if: always() && (needs.release-needed.outputs.should_release == 'true' || github.event_name == 'workflow_dispatch')
     permissions:
       contents: write
     steps:
