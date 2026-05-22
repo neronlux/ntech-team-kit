@@ -113,6 +113,11 @@ func PerformInstall(opts InstallOptions) error {
 			return fmt.Errorf("failed to create parent for %s: %w", dest, err)
 		}
 
+		// Give a clear error if the source file is missing from the kit package
+		if _, err := os.Stat(src); err != nil {
+			return fmt.Errorf("source file missing from kit root (%s): %s", opts.KitRoot, src)
+		}
+
 		if opts.Mode == "link" {
 			// Remove existing link/target first
 			_ = os.Remove(dest)
@@ -221,6 +226,14 @@ func PerformInstall(opts InstallOptions) error {
 }
 
 func copyFile(src, dst string) error {
+	// Defensive: always ensure the parent directory exists right before writing.
+	// This eliminates rare edge cases on macOS where a previous MkdirAll
+	// appeared to succeed but the directory was not actually usable when
+	// os.Create ran (permissions, sync tools, broken symlinks, etc.).
+	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+		return fmt.Errorf("failed to create parent directory for %s: %w", dst, err)
+	}
+
 	in, err := os.Open(src)
 	if err != nil {
 		return err
