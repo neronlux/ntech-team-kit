@@ -122,11 +122,12 @@ The agent will watch the checks, diagnose failures using `gh pr checks`, apply f
 ### 3. Get a strict code quality review
 
 ```bash
-# In OpenCode, ask the agent to invoke the heavy reviewer
-@thermo-nuclear-code-quality-review
+@thermo-nuclear-code-quality-review review the current branch for maintainability issues
 ```
 
-Or invoke it via the Task tool after gathering a diff. This runs the famous "thermo-nuclear" maintainability audit (1k-line rule, code judo, spaghetti detection, etc.).
+Or from a parent agent, invoke it as a subagent with `Task(subagent_type: "thermo-nuclear-code-quality-review", ...)`.
+
+This is the famous "thermo-nuclear" maintainability audit (1k-line rule, code judo, spaghetti detection, ambitious structural simplification). It is fully tab-discoverable via `@` and will gather its own context (diff + file contents) when invoked directly.
 
 ### 4. Verify a claim with evidence
 
@@ -161,7 +162,7 @@ See the full list in the `skills/` directory.
 | Agent                              | Description |
 |------------------------------------|-------------|
 | `ci-watcher`                       | Background agent that monitors PR checks (requires the plugin below) |
-| `thermo-nuclear-code-quality-review` | Hidden subagent used for deep code quality reviews |
+| `thermo-nuclear-code-quality-review` | Deep code quality / maintainability auditor (1k-line rule, code-judo). Tab-selectable via @ |
 
 ### Commands
 

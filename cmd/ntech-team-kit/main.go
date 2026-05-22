@@ -42,6 +42,34 @@ func main() {
 			os.Exit(1)
 		}
 
+	case "update":
+		cur := getVersion()
+
+		// 1. CLI version check (GitHub)
+		fmt.Printf("Current CLI: %s\n", cur)
+		if latest, avail, err := kit.CheckForUpdate(cur); err == nil {
+			if avail {
+				fmt.Printf("New version available: v%s\n", latest)
+				fmt.Println("→ Recommended: brew upgrade ntech-team-kit   (or git pull + rebuild)")
+			} else {
+				fmt.Println("CLI binary is up to date.")
+			}
+		} else {
+			fmt.Printf("Could not reach GitHub for version check: %v\n", err)
+		}
+
+		// 2. Always refresh the kit content (skills, agents, commands, rules)
+		//    from the currently resolved kit tree. This pulls any newly added
+		//    skills/agents even if the binary version is unchanged.
+		fmt.Println("\n→ Refreshing skills, agents, commands and rules into OpenCode config...")
+		if err := kit.RunInstaller(root, []string{"install"}); err != nil {
+			fmt.Fprintf(os.Stderr, "Content refresh failed: %v\n", err)
+			os.Exit(1)
+		}
+
+		fmt.Println("\n✓ Update complete. Content is now fresh from this kit tree.")
+		_ = kit.TouchStamp(kit.DefaultUpdateStampPath())
+
 	case "doctor":
 		results := kit.RunDoctor(root)
 		allGood := true
@@ -58,6 +86,16 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Println("\nAll checks passed.")
+
+		// Non-blocking update hint (once per day)
+		cur := getVersion()
+		stamp := kit.DefaultUpdateStampPath()
+		if kit.IsStale(stamp) {
+			if latest, avail, err := kit.CheckForUpdate(cur); err == nil && avail {
+				fmt.Printf("\n💡 Update available: v%s → v%s  (run: ntech-team-kit update)\n", cur, latest)
+			}
+			_ = kit.TouchStamp(stamp)
+		}
 
 	case "version":
 		fmt.Println("ntech-team-kit", getVersion())
@@ -121,6 +159,15 @@ func getVersion() string {
 	return "dev"
 }
 
+func hasYes(args []string) bool {
+	for _, a := range args {
+		if a == "--yes" || a == "-y" {
+			return true
+		}
+	}
+	return false
+}
+
 func printUsage() {
 	fmt.Print(`ntech-team-kit - OpenCode skills, agents, and rules installer
 
@@ -131,6 +178,7 @@ Commands:
   install     Install skills, agents, commands, rules, and plugin
   uninstall   Remove all installed files
   status      Show current installation status
+  update      Check for newer CLI + refresh all skills/agents/commands/rules
   doctor      Run health checks (OpenCode, gh, auth, etc.)
   version     Print version
   path        Print the resolved kit root directory

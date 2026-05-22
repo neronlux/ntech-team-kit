@@ -24,9 +24,8 @@
       }
     },
     "thermo-nuclear-code-quality-review": {
-      "description": "Thermo-nuclear code quality audit invoked via Task after gathering diff and file contents.",
+      "description": "Deep maintainability & code-quality auditor (1k-line rule, code-judo, spaghetti). Tab-selectable via @ or via Task.",
       "mode": "subagent",
-      "hidden": true,
       "permission": {
         "edit": "deny",
         "bash": {
