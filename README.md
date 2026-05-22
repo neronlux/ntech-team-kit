@@ -11,12 +11,12 @@ If you like the rigorous internal workflows Cursor uses (strict code review, rel
 It includes:
 
 - **18 reusable skills** for CI, code review, shipping, verification, and code quality
-- **2 specialized agents** (including a background CI watcher)
+- **2 specialized agents**, both directly tab-selectable via `@`
 - **8 convenient `/commands`** for the most common workflows
 - **2 opinionated rules** (no inline imports + exhaustive TypeScript switches)
 - **1 TypeScript plugin** for proactive CI monitoring
 
-Everything installs locally into your `~/.config/opencode/` directory and works across machines.
+Everything installs locally into your `~/.config/opencode/` directory. A single `ntech-team-kit update` command keeps the CLI and all content (skills, agents, commands) in sync after a `git pull` or `brew upgrade`.
 
 ## Prerequisites
 
@@ -60,40 +60,48 @@ You can also use the original shell script directly:
 ./install.sh
 ```
 
-### Useful commands
+### CLI reference
 
 ```bash
-ntech-team-kit install
-ntech-team-kit install --copy          # Copy files (default)
-ntech-team-kit install --link          # Symlink instead (not recommended)
-ntech-team-kit doctor                  # Check your environment (recommended)
-ntech-team-kit status
+ntech-team-kit install                 # Install / refresh skills, agents, commands, rules
+ntech-team-kit update                  # Check for updates + refresh all content (recommended)
+ntech-team-kit doctor                  # Health check + daily update hint
+ntech-team-kit status                  # Show what is currently installed
+ntech-team-kit version                 # Print the CLI version
+ntech-team-kit path                    # Show the resolved kit root
 ntech-team-kit uninstall
 ```
 
-### Upgrade
+Global options:
+- `--root <path>` — override kit location (useful in development)
+- `NTECH_TEAM_KIT_ROOT` and `OPENCODE_CONFIG_DIR` environment variables also work
+
+### Keeping the kit up to date
+
+**Homebrew users (recommended):**
 
 ```bash
-cd ~/ntech-team-kit && git pull && ntech-team-kit install
+brew upgrade ntech-team-kit
+ntech-team-kit update          # optional but recommended — refreshes latest skills/agents
 ```
 
-After pulling, re-run `ntech-team-kit install` to update the copied files.
-
-## The `ntech-team-kit` CLI
-
-This project includes a small, fast Go CLI:
+**Source / development users:**
 
 ```bash
-ntech-team-kit doctor      # Run health checks (strongly recommended after install)
-ntech-team-kit status
-ntech-team-kit install
-ntech-team-kit path
-ntech-team-kit version
+cd ~/ntech-team-kit
+git pull
+ntech-team-kit update
 ```
 
-`ntech-team-kit doctor` is the best way to verify your environment is ready.
+`ntech-team-kit update` does two things:
+- Reports whether a newer CLI binary is available on GitHub
+- Always copies the latest skills, agents, commands, and rules from the current kit tree into your OpenCode config
 
-Homebrew will install this same binary.
+`ntech-team-kit doctor` will also print a polite one-line hint (at most once per day) when it detects a newer version.
+
+After any `git pull` or `brew upgrade`, running `update` (or just `doctor`) is the fastest way to stay current.
+
+See the full CLI reference in the Installation section above. Homebrew ships the exact same binary.
 
 ## Quick Start
 
@@ -127,7 +135,7 @@ The agent will watch the checks, diagnose failures using `gh pr checks`, apply f
 
 Or from a parent agent, invoke it as a subagent with `Task(subagent_type: "thermo-nuclear-code-quality-review", ...)`.
 
-This is the famous "thermo-nuclear" maintainability audit (1k-line rule, code judo, spaghetti detection, ambitious structural simplification). It is fully tab-discoverable via `@` and will gather its own context (diff + file contents) when invoked directly.
+This is the famous "thermo-nuclear" maintainability audit (1k-line rule, code judo, spaghetti detection, ambitious structural simplification). The agent is fully tab-discoverable via `@` and gathers its own context (diff + file contents) when invoked directly.
 
 ### 4. Verify a claim with evidence
 
@@ -148,7 +156,7 @@ Skills load on demand via the `skill` tool. The most popular ones include:
 | `review-and-ship`                  | Full review → test → commit → PR workflow |
 | `loop-on-ci`                       | Watch PR checks and fix failures until green |
 | `fix-ci`                           | Diagnose and fix the first failing check |
-| `thermo-nuclear-code-quality-review` | Strict maintainability audit |
+| `thermo-nuclear-code-quality-review` | Deep maintainability audit (1k-line rule, ambitious code-judo, no spaghetti) |
 | `verify-this`                      | Prove or disprove a claim with local evidence |
 | `make-pr-easy-to-review`           | Clean commit history and improve PR description |
 | `pr-review-canvas`                 | Generate a beautiful interactive HTML PR review page |
@@ -159,10 +167,12 @@ See the full list in the `skills/` directory.
 
 ### Agents
 
+Both agents are directly discoverable via `@` in OpenCode (press Tab after `@`).
+
 | Agent                              | Description |
 |------------------------------------|-------------|
-| `ci-watcher`                       | Background agent that monitors PR checks (requires the plugin below) |
-| `thermo-nuclear-code-quality-review` | Deep code quality / maintainability auditor (1k-line rule, code-judo). Tab-selectable via @ |
+| `ci-watcher`                       | Background CI monitoring agent (requires the plugin below) |
+| `thermo-nuclear-code-quality-review` | Deep, rigorous maintainability auditor (1k-line rule, code-judo, spaghetti elimination). Fully tab-selectable via `@` and gathers its own context when invoked directly. |
 
 ### Commands
 

@@ -35,6 +35,7 @@ class NtechTeamKit < Formula
       Recommended next steps:
 
         ntech-team-kit doctor
+        ntech-team-kit update
         ntech-team-kit status
 
       To enable the background CI watcher plugin:
