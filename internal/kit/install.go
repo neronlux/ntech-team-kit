@@ -226,12 +226,17 @@ func PerformInstall(opts InstallOptions) error {
 }
 
 func copyFile(src, dst string) error {
-	// Defensive: always ensure the parent directory exists right before writing.
-	// This eliminates rare edge cases on macOS where a previous MkdirAll
-	// appeared to succeed but the directory was not actually usable when
-	// os.Create ran (permissions, sync tools, broken symlinks, etc.).
-	if err := os.MkdirAll(filepath.Dir(dst), 0o755); err != nil {
+	dir := filepath.Dir(dst)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
 		return fmt.Errorf("failed to create parent directory for %s: %w", dst, err)
+	}
+
+	srcInfo, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	if srcInfo.IsDir() {
+		return fmt.Errorf("source is a directory, expected file: %s", src)
 	}
 
 	in, err := os.Open(src)
@@ -240,18 +245,44 @@ func copyFile(src, dst string) error {
 	}
 	defer in.Close()
 
-	out, err := os.Create(dst)
+	// Write to a temp file in the destination directory, then rename it into
+	// place. This avoids following an existing destination symlink. That matters
+	// after Homebrew upgrades because old --link installs can leave symlinks into
+	// removed Cellar versions; os.Create(dst) would follow the broken link and
+	// fail with "no such file or directory".
+	tmp, err := os.CreateTemp(dir, "."+filepath.Base(dst)+".tmp-*")
 	if err != nil {
 		return err
 	}
+	tmpName := tmp.Name()
+	cleanup := true
 	defer func() {
-		_ = out.Close()
+		if cleanup {
+			_ = os.Remove(tmpName)
+		}
 	}()
 
-	if _, err := io.Copy(out, in); err != nil {
+	if _, err := io.Copy(tmp, in); err != nil {
+		_ = tmp.Close()
 		return err
 	}
-	return out.Sync()
+	if err := tmp.Chmod(srcInfo.Mode().Perm()); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Sync(); err != nil {
+		_ = tmp.Close()
+		return err
+	}
+	if err := tmp.Close(); err != nil {
+		return err
+	}
+
+	if err := os.Rename(tmpName, dst); err != nil {
+		return err
+	}
+	cleanup = false
+	return nil
 }
 
 // ensurePluginDependency replicates the logic from install.sh
