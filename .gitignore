@@ -3,4 +3,5 @@ dist/
 node_modules/
 *.tsbuildinfo
 # Keep bun.lock committed for reproducible installs of the plugin dev deps
+/ntech-team-kit
 
