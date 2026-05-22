@@ -30,7 +30,7 @@ Some skills (e.g. `run-smoke-tests`, `control-ui`) may also require tools that e
 
 ## Installation
 
-### Recommended: Homebrew (recommended for most users)
+### Homebrew (recommended)
 
 ```bash
 brew tap neronlux/tap
@@ -38,34 +38,35 @@ brew install ntech-team-kit
 ntech-team-kit install
 ```
 
-### From source (development)
+This is the easiest way to install and keep the tool up to date.
+
+### From source (for development)
 
 ```bash
 git clone https://github.com/neronlux/ntech-team-kit.git ~/ntech-team-kit
 cd ~/ntech-team-kit
 
-# Use the convenient launcher during development
+# Convenient launcher (no build step needed)
 ./bin/ntech-team-kit install
 
-# Or build the binary once
+# Or build the Go binary
 go build -o /usr/local/bin/ntech-team-kit ./cmd/ntech-team-kit
 ntech-team-kit install
 ```
 
-You can still fall back to the original shell installer if preferred:
+You can also use the original shell script directly:
 
 ```bash
 ./install.sh
 ```
 
-### Common commands
+### Useful commands
 
 ```bash
 ntech-team-kit install
-ntech-team-kit install --copy          # Copy instead of symlink
-ntech-team-kit install --dry-run
+ntech-team-kit install --copy          # Copy files instead of symlinking
+ntech-team-kit doctor                  # Check your environment (recommended)
 ntech-team-kit status
-ntech-team-kit doctor                  # Highly recommended
 ntech-team-kit uninstall
 ```
 
