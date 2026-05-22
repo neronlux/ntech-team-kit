@@ -26,17 +26,21 @@ class NtechTeamKit < Formula
 
   def caveats
     <<~EOS
-      The kit is now installed, but it is **not** yet active in OpenCode.
+      The kit contents are installed, but they are **not** yet active in OpenCode.
 
-      Run the following command to install it into your OpenCode config:
+      Run the following to copy skills, agents, commands and rules into your OpenCode config:
 
         ntech-team-kit install
+
+      The CLI is now fully native Go (no shell script delegation), making
+      install / update / uninstall / status reliable across platforms.
 
       Recommended next steps:
 
         ntech-team-kit doctor
         ntech-team-kit update
         ntech-team-kit status
+        ntech-team-kit uninstall     # if you ever want to remove everything
 
       To enable the background CI watcher plugin:
 
