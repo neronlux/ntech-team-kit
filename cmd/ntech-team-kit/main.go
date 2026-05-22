@@ -34,6 +34,17 @@ func main() {
 	// Resolve final kit root
 	root := resolveKitRoot()
 
+	// Pre-flight validation for any command that needs a real kit tree.
+	// This gives a clear, actionable error instead of letting install.sh
+	// fail with cryptic "cp: ... No such file or directory".
+	if command == "install" || command == "uninstall" || command == "status" || command == "update" {
+		if err := kit.ValidateKitRoot(root); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
+			fmt.Fprintln(os.Stderr, "Use --root <path> or NTECH_TEAM_KIT_ROOT=/path/to/kit to override.")
+			os.Exit(1)
+		}
+	}
+
 	switch command {
 	case "install", "uninstall", "status":
 		// Delegate to the battle-tested install.sh

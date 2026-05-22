@@ -148,6 +148,19 @@ do_install_file() {
     dry_log "$MODE $src -> $dest"
     return
   fi
+
+  # Ensure the destination's parent directory exists (defensive against any
+  # prior partial state or brace-expansion quirks on some shells)
+  mkdir -p "$(dirname "$dest")"
+
+  if [[ ! -e "$src" ]]; then
+    echo "[ntech-team-kit] ERROR: source file missing: $src"
+    echo "[ntech-team-kit]        REPO_DIR appears to be: $REPO_DIR"
+    echo "[ntech-team-kit]        This usually means the installed kit is incomplete."
+    echo "[ntech-team-kit]        Try: NTECH_TEAM_KIT_ROOT=/path/to/clone ntech-team-kit install"
+    exit 1
+  fi
+
   if [[ "$MODE" == "link" ]]; then
     ln -sfn "$src" "$dest"
   else
@@ -178,7 +191,13 @@ do_remove_file() {
 }
 
 do_install() {
-  mkdir -p "$OC_CONFIG_DIR"/{skills,agents,commands,rules,plugins}
+  # Create top-level directories explicitly (brace expansion after a variable
+  # can be unreliable on some macOS shells / quoting contexts)
+  mkdir -p "$OC_CONFIG_DIR/skills" \
+           "$OC_CONFIG_DIR/agents" \
+           "$OC_CONFIG_DIR/commands" \
+           "$OC_CONFIG_DIR/rules" \
+           "$OC_CONFIG_DIR/plugins"
   : > "$MANIFEST"
 
   for skill in "${SKILLS[@]}"; do

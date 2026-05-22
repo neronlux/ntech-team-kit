@@ -23,6 +23,7 @@ func RunDoctor(kitRoot string) []CheckResult {
 	results = append(results, checkKitRoot(kitRoot))
 	results = append(results, checkInstallScript(kitRoot))
 	results = append(results, checkManifest())
+	results = append(results, checkKitContents(kitRoot))
 
 	return results
 }
@@ -86,4 +87,17 @@ func checkManifest() CheckResult {
 		return CheckResult{Name: "Install Manifest", Passed: true, Message: "kit is installed (manifest found)"}
 	}
 	return CheckResult{Name: "Install Manifest", Passed: false, Message: "no install manifest found (run 'ntech-team-kit install')"}
+}
+
+// checkKitContents uses the strict ValidateKitRoot to surface packaging / layout problems.
+func checkKitContents(root string) CheckResult {
+	if err := ValidateKitRoot(root); err != nil {
+		// Truncate long error for the one-line doctor output
+		msg := err.Error()
+		if len(msg) > 80 {
+			msg = msg[:77] + "..."
+		}
+		return CheckResult{Name: "Kit Contents", Passed: false, Message: msg}
+	}
+	return CheckResult{Name: "Kit Contents", Passed: true, Message: "install.sh + skills/ present and valid"}
 }
