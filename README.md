@@ -64,7 +64,8 @@ You can also use the original shell script directly:
 
 ```bash
 ntech-team-kit install
-ntech-team-kit install --copy          # Copy files instead of symlinking
+ntech-team-kit install --copy          # Copy files (default)
+ntech-team-kit install --link          # Symlink instead (not recommended)
 ntech-team-kit doctor                  # Check your environment (recommended)
 ntech-team-kit status
 ntech-team-kit uninstall
@@ -76,7 +77,7 @@ ntech-team-kit uninstall
 cd ~/ntech-team-kit && git pull && ntech-team-kit install
 ```
 
-Because the default mode uses symlinks, pulling the latest version is normally all you need.
+After pulling, re-run `ntech-team-kit install` to update the copied files.
 
 ## The `ntech-team-kit` CLI
 

@@ -4,7 +4,7 @@ set -euo pipefail
 REPO_DIR="$(cd "$(dirname "$0")" && pwd)"
 OC_CONFIG_DIR="${OPENCODE_CONFIG_DIR:-$HOME/.config/opencode}"
 MANIFEST="$OC_CONFIG_DIR/.ntech-team-kit-manifest"
-MODE="link"
+MODE="copy"
 DRY_RUN=0
 COMMAND="install"
 
@@ -65,8 +65,8 @@ Commands:
   status      Show what is currently installed
 
 Options:
-  --copy      Copy files instead of symlinking
-  --link      Symlink files (default)
+  --copy      Copy files (default)
+  --link      Symlink files (not recommended — OpenCode does not follow symlinks)
   --dry-run   Show what would be done without doing it
   -h, --help  Show this help
 EOF
@@ -209,6 +209,9 @@ do_install() {
 
   if [[ $DRY_RUN -eq 0 ]]; then
     log "install complete ($MODE mode)"
+    if [[ "$MODE" == "link" ]]; then
+      log "  warning: symlink mode — OpenCode may not discover symlinked skills/agents/commands"
+    fi
     log "  skills:   ${#SKILLS[@]}"
     log "  agents:   ${#AGENTS[@]}"
     log "  commands: ${#COMMANDS[@]}"
