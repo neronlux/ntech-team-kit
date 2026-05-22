@@ -46,21 +46,15 @@ func main() {
 
 	switch command {
 	case "install":
-		// Robust pure-Go installer
 		mode := "copy"
 		for _, a := range args {
 			if a == "--link" {
 				mode = "link"
 			}
 		}
-		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
-		if ocDir == "" {
-			home, _ := os.UserHomeDir()
-			ocDir = filepath.Join(home, ".config", "opencode")
-		}
 		if err := kit.PerformInstall(kit.InstallOptions{
 			KitRoot:   root,
-			ConfigDir: ocDir,
+			ConfigDir: resolveConfigDir(),
 			Mode:      mode,
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
@@ -68,23 +62,13 @@ func main() {
 		}
 
 	case "uninstall":
-		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
-		if ocDir == "" {
-			home, _ := os.UserHomeDir()
-			ocDir = filepath.Join(home, ".config", "opencode")
-		}
-		if err := kit.PerformUninstall(ocDir); err != nil {
+		if err := kit.PerformUninstall(resolveConfigDir()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "status":
-		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
-		if ocDir == "" {
-			home, _ := os.UserHomeDir()
-			ocDir = filepath.Join(home, ".config", "opencode")
-		}
-		if err := kit.PrintStatus(ocDir); err != nil {
+		if err := kit.PrintStatus(resolveConfigDir()); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
@@ -108,14 +92,9 @@ func main() {
 		// 2. Always refresh the kit content using the robust pure-Go installer.
 		//    This is the critical path that must never fail with cryptic errors.
 		fmt.Println("\n→ Refreshing skills, agents, commands and rules into OpenCode config...")
-		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
-		if ocDir == "" {
-			home, _ := os.UserHomeDir()
-			ocDir = filepath.Join(home, ".config", "opencode")
-		}
 		if err := kit.PerformInstall(kit.InstallOptions{
 			KitRoot:   root,
-			ConfigDir: ocDir,
+			ConfigDir: resolveConfigDir(),
 			Mode:      "copy",
 		}); err != nil {
 			fmt.Fprintf(os.Stderr, "Content refresh failed: %v\n", err)
@@ -163,6 +142,14 @@ func main() {
 		printUsage()
 		os.Exit(1)
 	}
+}
+
+func resolveConfigDir() string {
+	if dir := os.Getenv("OPENCODE_CONFIG_DIR"); dir != "" {
+		return dir
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "opencode")
 }
 
 func resolveKitRoot() string {
@@ -214,15 +201,6 @@ func getVersion() string {
 	return "dev"
 }
 
-func hasYes(args []string) bool {
-	for _, a := range args {
-		if a == "--yes" || a == "-y" {
-			return true
-		}
-	}
-	return false
-}
-
 func printUsage() {
 	fmt.Print(`ntech-team-kit - OpenCode skills, agents, and rules installer
 
@@ -247,7 +225,7 @@ Environment variables:
 
 Examples:
   ntech-team-kit install
-  ntech-team-kit install --copy
+  ntech-team-kit install --link
   ntech-team-kit doctor
   NTECH_TEAM_KIT_ROOT=/path/to/kit ntech-team-kit status
 `)

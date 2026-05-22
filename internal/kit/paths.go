@@ -26,7 +26,7 @@ func GetKitRoot() string {
 	return detectRepoRoot()
 }
 
-// detectRepoRoot tries to find the kit root by looking for install.sh + skills/ directory.
+// detectRepoRoot tries to find the kit root by looking for skills/ + VERSION.
 func detectRepoRoot() string {
 	// Try from the executable location first (best for built binaries)
 	if exe, err := os.Executable(); err == nil {
@@ -69,13 +69,13 @@ func searchUpForKit(start string) string {
 }
 
 func hasKitLayout(dir string) bool {
-	installScript := filepath.Join(dir, "install.sh")
 	skillsDir := filepath.Join(dir, "skills")
+	versionFile := filepath.Join(dir, "VERSION")
 
-	if _, err := os.Stat(installScript); err != nil {
+	if info, err := os.Stat(skillsDir); err != nil || !info.IsDir() {
 		return false
 	}
-	if info, err := os.Stat(skillsDir); err != nil || !info.IsDir() {
+	if _, err := os.Stat(versionFile); err != nil {
 		return false
 	}
 	return true
@@ -83,8 +83,7 @@ func hasKitLayout(dir string) bool {
 
 // ValidateKitRoot performs a strict pre-flight check on the resolved kit root.
 // It returns a clear, actionable error if the directory does not look like a
-// complete ntech-team-kit installation (missing install.sh, skills/, or key files).
-// This prevents cryptic failures later in install.sh (e.g. "cp: ... No such file").
+// complete ntech-team-kit installation (missing skills/, VERSION, or key files).
 func ValidateKitRoot(root string) error {
 	if root == "" {
 		return fmt.Errorf("could not determine kit root (set NTECH_TEAM_KIT_ROOT or use --root)")
@@ -95,7 +94,7 @@ func ValidateKitRoot(root string) error {
 	}
 
 	if !hasKitLayout(root) {
-		return fmt.Errorf("kit root is missing required files (install.sh + skills/ directory):\n  %s\n\nThis usually means the installation is incomplete or corrupted.\n\nSuggestions:\n  • Homebrew users:   brew reinstall ntech-team-kit\n  • Source users:     cd /path/to/clone && git pull && ./bin/ntech-team-kit install\n  • Override:         NTECH_TEAM_KIT_ROOT=/path/to/kit ntech-team-kit install", root)
+		return fmt.Errorf("kit root is missing required files (skills/ directory + VERSION):\n  %s\n\nThis usually means the installation is incomplete or corrupted.\n\nSuggestions:\n  • Homebrew users:   brew reinstall ntech-team-kit\n  • Source users:     cd /path/to/clone && git pull && ./bin/ntech-team-kit install\n  • Override:         NTECH_TEAM_KIT_ROOT=/path/to/kit ntech-team-kit install", root)
 	}
 
 	// Extra sanity: verify at least one real skill file exists (catches partial packaging)

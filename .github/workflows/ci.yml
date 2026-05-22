@@ -40,6 +40,8 @@ jobs:
 
       - run: go build -o /dev/null ./cmd/ntech-team-kit
 
+      - run: go vet ./...
+
       - run: go test ./...
 
   release-needed:
@@ -114,16 +116,11 @@ jobs:
         with:
           go-version: "1.24"
 
-      - name: Build binaries
+      - name: Build release binary for verification
         run: |
           VERSION=${{ steps.version.outputs.version }}
           LDFLAGS="-s -w -X main.version=${VERSION}"
-
-          mkdir -p dist
-
-          GOOS=linux  GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "dist/ntech-team-kit-linux-amd64"  ./cmd/ntech-team-kit
-          GOOS=darwin GOARCH=arm64 go build -ldflags "$LDFLAGS" -o "dist/ntech-team-kit-darwin-arm64" ./cmd/ntech-team-kit
-          GOOS=darwin GOARCH=amd64 go build -ldflags "$LDFLAGS" -o "dist/ntech-team-kit-darwin-amd64"  ./cmd/ntech-team-kit
+          go build -ldflags "$LDFLAGS" -o /dev/null ./cmd/ntech-team-kit
 
       - name: Compute tarball SHA256
         id: sha
@@ -143,8 +140,6 @@ jobs:
           draft: false
           prerelease: false
           generate_release_notes: true
-          files: |
-            dist/ntech-team-kit-*
           body: |
             ## Installation
 
@@ -162,15 +157,6 @@ jobs:
             git clone https://github.com/neronlux/ntech-team-kit.git
             cd ntech-team-kit
             ./bin/ntech-team-kit install
-            ```
-
-            ### Binary (Linux / macOS)
-
-            Download the appropriate binary from the assets below, make it executable, and run:
-
-            ```bash
-            chmod +x ntech-team-kit-darwin-arm64
-            ./ntech-team-kit-darwin-arm64 install
             ```
 
             SHA256 of source tarball: `${{ steps.sha.outputs.sha256 }}`

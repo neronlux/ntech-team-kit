@@ -21,7 +21,7 @@ class NtechTeamKit < Formula
 
     # Install the actual kit contents
     libexec.install "skills", "agents", "commands", "rules", "plugins"
-    libexec.install "install.sh", "opencode.jsonc", "AGENTS.md", "package.json", "VERSION"
+    libexec.install "opencode.jsonc", "AGENTS.md", "package.json", "VERSION"
   end
 
   def caveats

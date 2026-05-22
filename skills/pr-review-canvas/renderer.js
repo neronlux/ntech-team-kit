@@ -1,15 +1,11 @@
 function toggle(hdr) {
-  var b = hdr.nextElementSibling, c = hdr.querySelector('.chev');
-  b.classList.toggle('open'); c.classList.toggle('open');
-}
-function toggleBP(hdr) {
-  var b = hdr.nextElementSibling, c = hdr.querySelector('.chev');
-  b.classList.toggle('open'); c.classList.toggle('open');
+  var body = hdr.nextElementSibling, chev = hdr.querySelector('.chev');
+  body.classList.toggle('open'); chev.classList.toggle('open');
 }
 
 function isImport(line) {
-  var s = line.replace(/^[+ -]/, '').trim();
-  return s.startsWith('import ') || s.startsWith('import{') || s.startsWith('} from ');
+  var trimmed = line.replace(/^[+ -]/, '').trim();
+  return trimmed.startsWith('import ') || trimmed.startsWith('import{') || trimmed.startsWith('} from ');
 }
 
 function isWhitespaceOnly(del, add) {
@@ -42,37 +38,44 @@ function loadPrDiffs() {
   }
 }
 
-function detectMoves(dels, adds) {
-  var TH = 3;
-  var md = {}, ma = {};
-  for (var di = 0; di < dels.length; di++) {
-    if (md[di]) continue;
-    var db = [di];
-    for (var d2 = di+1; d2 < dels.length && d2-di < 40; d2++) {
-      if (dels[d2].consecutive && !md[d2]) db.push(d2); else break;
+function detectMoves(deletions, additions) {
+  var MIN_BLOCK = 3;
+  var movedDels = {}, movedAdds = {};
+
+  for (var delIdx = 0; delIdx < deletions.length; delIdx++) {
+    if (movedDels[delIdx]) continue;
+
+    var delBlock = [delIdx];
+    for (var d = delIdx + 1; d < deletions.length && d - delIdx < 40; d++) {
+      if (deletions[d].consecutive && !movedDels[d]) delBlock.push(d); else break;
     }
-    if (db.length < TH) continue;
-    var dn = db.map(function(i){ return normWs(dels[i].code); });
-    for (var ai = 0; ai < adds.length; ai++) {
-      if (ma[ai]) continue;
-      var ab = [ai];
-      for (var a2 = ai+1; a2 < adds.length && a2-ai < 40; a2++) {
-        if (adds[a2].consecutive && !ma[a2]) ab.push(a2); else break;
+    if (delBlock.length < MIN_BLOCK) continue;
+
+    var delNorms = delBlock.map(function(i) { return normWs(deletions[i].code); });
+
+    for (var addIdx = 0; addIdx < additions.length; addIdx++) {
+      if (movedAdds[addIdx]) continue;
+
+      var addBlock = [addIdx];
+      for (var a = addIdx + 1; a < additions.length && a - addIdx < 40; a++) {
+        if (additions[a].consecutive && !movedAdds[a]) addBlock.push(a); else break;
       }
-      if (ab.length < TH) continue;
-      var an = ab.map(function(i){ return normWs(adds[i].code); });
-      var ml = Math.min(dn.length, an.length), mc = 0;
-      for (var m = 0; m < ml; m++) { if (dn[m] === an[m]) mc++; }
-      if (mc >= TH && mc >= ml * 0.7) {
-        for (var k = 0; k < ml; k++) {
-          md[db[k]] = { exact: dn[k] === an[k] };
-          ma[ab[k]] = { exact: dn[k] === an[k] };
+      if (addBlock.length < MIN_BLOCK) continue;
+
+      var addNorms = addBlock.map(function(i) { return normWs(additions[i].code); });
+      var matchLen = Math.min(delNorms.length, addNorms.length), matchCount = 0;
+      for (var m = 0; m < matchLen; m++) { if (delNorms[m] === addNorms[m]) matchCount++; }
+
+      if (matchCount >= MIN_BLOCK && matchCount >= matchLen * 0.7) {
+        for (var k = 0; k < matchLen; k++) {
+          movedDels[delBlock[k]] = { exact: delNorms[k] === addNorms[k] };
+          movedAdds[addBlock[k]] = { exact: delNorms[k] === addNorms[k] };
         }
         break;
       }
     }
   }
-  return { movedDels: md, movedAdds: ma };
+  return { movedDels: movedDels, movedAdds: movedAdds };
 }
 
 function renderDiff(target, diffInput) {
@@ -87,65 +90,70 @@ function renderDiff(target, diffInput) {
   var lines = toLines(diffInput);
   if (!lines.length) { el.innerHTML = '<div style="padding:12px;color:#777;font-size:12px;">No diff data</div>'; return; }
 
-  var filtered = lines.filter(function(l) {
-    if (l.startsWith('--- ') || l.startsWith('+++ ') || l.startsWith('@@') || l.startsWith('diff ')) return true;
-    return !isImport(l);
+  var filtered = lines.filter(function(line) {
+    if (line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('@@') || line.startsWith('diff ')) return true;
+    return !isImport(line);
   });
 
-  var wsOut = [];
-  for (var wi = 0; wi < filtered.length; wi++) {
-    if (filtered[wi].startsWith('-')) {
-      var dr = [filtered[wi]], wj = wi+1;
-      while (wj < filtered.length && filtered[wj].startsWith('-')) { dr.push(filtered[wj]); wj++; }
-      var ar = [], wk = wj;
-      while (wk < filtered.length && filtered[wk].startsWith('+')) { ar.push(filtered[wk]); wk++; }
-      if (dr.length === ar.length && dr.length > 0) {
+  var wsFiltered = [];
+  for (var fi = 0; fi < filtered.length; fi++) {
+    if (filtered[fi].startsWith('-')) {
+      var delRun = [filtered[fi]], dj = fi + 1;
+      while (dj < filtered.length && filtered[dj].startsWith('-')) { delRun.push(filtered[dj]); dj++; }
+      var addRun = [], aj = dj;
+      while (aj < filtered.length && filtered[aj].startsWith('+')) { addRun.push(filtered[aj]); aj++; }
+      if (delRun.length === addRun.length && delRun.length > 0) {
         var allWs = true;
-        for (var wc = 0; wc < dr.length; wc++) { if (!isWhitespaceOnly(dr[wc], ar[wc])) { allWs = false; break; } }
-        if (allWs) { for (var wx = 0; wx < ar.length; wx++) wsOut.push(' ' + ar[wx].slice(1)); wi = wk-1; continue; }
+        for (var wc = 0; wc < delRun.length; wc++) { if (!isWhitespaceOnly(delRun[wc], addRun[wc])) { allWs = false; break; } }
+        if (allWs) { for (var wx = 0; wx < addRun.length; wx++) wsFiltered.push(' ' + addRun[wx].slice(1)); fi = aj - 1; continue; }
       }
     }
-    wsOut.push(filtered[wi]);
+    wsFiltered.push(filtered[fi]);
   }
 
-  var dels = [], adds = [], parsed = [];
-  var oL = 0, nL = 0, pD = false, pA = false;
-  for (var pi = 0; pi < wsOut.length; pi++) {
-    var line = wsOut[pi];
+  var deletions = [], additions = [], parsed = [];
+  var oldLine = 0, newLine = 0, prevDel = false, prevAdd = false;
+  for (var pi = 0; pi < wsFiltered.length; pi++) {
+    var line = wsFiltered[pi];
     if (line.startsWith('--- ') || line.startsWith('+++ ') || line.startsWith('diff ')) continue;
     if (line.startsWith('@@')) {
-      var hm = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/);
-      if (hm) { oL = parseInt(hm[1]); nL = parseInt(hm[2]); }
-      parsed.push({ type: 'hunk', text: line }); pD = false; pA = false; continue;
+      var hunkMatch = line.match(/@@ -(\d+)(?:,\d+)? \+(\d+)/);
+      if (hunkMatch) { oldLine = parseInt(hunkMatch[1]); newLine = parseInt(hunkMatch[2]); }
+      parsed.push({ type: 'hunk', text: line }); prevDel = false; prevAdd = false; continue;
     }
     if (line.startsWith('+')) {
-      var ae = { type:'add', code:line.slice(1), newLine:nL, consecutive:pA, idx:parsed.length };
-      adds.push(ae); parsed.push(ae); nL++; pA = true; pD = false;
+      var addEntry = { type:'add', code:line.slice(1), newLine:newLine, consecutive:prevAdd, idx:parsed.length };
+      additions.push(addEntry); parsed.push(addEntry); newLine++; prevAdd = true; prevDel = false;
     } else if (line.startsWith('-')) {
-      var de = { type:'del', code:line.slice(1), oldLine:oL, consecutive:pD, idx:parsed.length };
-      dels.push(de); parsed.push(de); oL++; pD = true; pA = false;
+      var delEntry = { type:'del', code:line.slice(1), oldLine:oldLine, consecutive:prevDel, idx:parsed.length };
+      deletions.push(delEntry); parsed.push(delEntry); oldLine++; prevDel = true; prevAdd = false;
     } else {
-      var c = line.startsWith(' ') ? line.slice(1) : line;
-      parsed.push({ type:'ctx', code:c, oldLine:oL, newLine:nL }); oL++; nL++; pD = false; pA = false;
+      var ctxCode = line.startsWith(' ') ? line.slice(1) : line;
+      parsed.push({ type:'ctx', code:ctxCode, oldLine:oldLine, newLine:newLine }); oldLine++; newLine++; prevDel = false; prevAdd = false;
     }
   }
 
-  var mv = detectMoves(dels, adds);
+  var addIdxMap = new Map();
+  for (var mi = 0; mi < additions.length; mi++) addIdxMap.set(additions[mi].idx, mi);
+  var delIdxMap = new Map();
+  for (var di = 0; di < deletions.length; di++) delIdxMap.set(deletions[di].idx, di);
+
+  var moves = detectMoves(deletions, additions);
   var rows = [];
   for (var ri = 0; ri < parsed.length; ri++) {
-    var p = parsed[ri];
-    if (p.type === 'hunk') {
-      rows.push('<tr class="diff-hunk"><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-code">' + esc(p.text) + '</td></tr>');
-    } else if (p.type === 'add') {
-      var ai2 = -1; for (var fa=0;fa<adds.length;fa++) if(adds[fa].idx===p.idx){ai2=fa;break;}
-      var cls = (mv.movedAdds[ai2]) ? (mv.movedAdds[ai2].exact ? 'diff-moved-add' : 'diff-moved-add-edited') : 'diff-add';
-      rows.push('<tr class="'+cls+'"><td class="diff-ln"></td><td class="diff-ln">'+p.newLine+'</td><td class="diff-code">'+esc(p.code)+'</td></tr>');
-    } else if (p.type === 'del') {
-      var di2 = -1; for(var fd=0;fd<dels.length;fd++) if(dels[fd].idx===p.idx){di2=fd;break;}
-      var cls2 = (mv.movedDels[di2]) ? (mv.movedDels[di2].exact ? 'diff-moved-del' : 'diff-moved-del-edited') : 'diff-del';
-      rows.push('<tr class="'+cls2+'"><td class="diff-ln">'+p.oldLine+'</td><td class="diff-ln"></td><td class="diff-code">'+esc(p.code)+'</td></tr>');
+    var entry = parsed[ri];
+    if (entry.type === 'hunk') {
+      rows.push('<tr class="diff-hunk"><td class="diff-ln"></td><td class="diff-ln"></td><td class="diff-code">' + esc(entry.text) + '</td></tr>');
+    } else if (entry.type === 'add') {
+      var addMapIdx = addIdxMap.get(entry.idx);
+      var cls = (moves.movedAdds[addMapIdx]) ? (moves.movedAdds[addMapIdx].exact ? 'diff-moved-add' : 'diff-moved-add-edited') : 'diff-add';
+      rows.push('<tr class="'+cls+'"><td class="diff-ln"></td><td class="diff-ln">'+entry.newLine+'</td><td class="diff-code">'+esc(entry.code)+'</td></tr>');
+    } else if (entry.type === 'del') {
+      var delMapIdx = delIdxMap.get(entry.idx);
+      var cls2 = (moves.movedDels[delMapIdx]) ? (moves.movedDels[delMapIdx].exact ? 'diff-moved-del' : 'diff-moved-del-edited') : 'diff-del';
+      rows.push('<tr class="'+cls2+'"><td class="diff-ln">'+entry.oldLine+'</td><td class="diff-ln"></td><td class="diff-code">'+esc(entry.code)+'</td></tr>');
     } else {
-      rows.push('<tr class="diff-ctx"><td class="diff-ln">'+p.oldLine+'</td><td class="diff-ln">'+p.newLine+'</td><td class="diff-code">'+esc(p.code)+'</td></tr>');
+      rows.push('<tr class="diff-ctx"><td class="diff-ln">'+entry.oldLine+'</td><td class="diff-ln">'+entry.newLine+'</td><td class="diff-code">'+esc(entry.code)+'</td></tr>');
     }
   }
   el.innerHTML = '<table class="diff-table"><tbody>' + rows.join('') + '</tbody></table>';

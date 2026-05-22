@@ -1,5 +1,20 @@
 import type { Plugin } from "@opencode-ai/plugin"
 
+interface PRResponse {
+  number: number
+  url: string
+  headRefName: string
+  state: string
+}
+
+interface CheckResult {
+  name: string
+  bucket: string
+  state: string
+  workflow: string
+  link: string
+}
+
 export const CIWatcherPlugin: Plugin = async ({ client, $ }) => {
   const POLL_INTERVAL_MS = 60_000
   const MAX_POLLS = 30
@@ -21,18 +36,18 @@ export const CIWatcherPlugin: Plugin = async ({ client, $ }) => {
         return
       }
 
-      const pr = JSON.parse(prJson)
+      const pr: PRResponse = JSON.parse(prJson)
       if (!pr || pr.state !== "OPEN") return
 
       const checksJson = await $`gh pr checks --json name,bucket,state,workflow,link`.quiet().text()
-      const checks = JSON.parse(checksJson)
+      const checks: CheckResult[] = JSON.parse(checksJson)
 
-      const pending = checks.filter((c: any) => c.state === "pending" || c.bucket === "pending")
-      const failed = checks.filter((c: any) => c.state === "failure" || c.state === "failed" || c.bucket === "fail" || c.bucket === "failed")
-      const passed = checks.filter((c: any) => c.state === "success" || c.state === "passed" || c.bucket === "pass" || c.bucket === "passed")
+      const pending = checks.filter((c) => c.state === "pending" || c.bucket === "pending")
+      const failed = checks.filter((c) => c.state === "failure" || c.state === "failed" || c.bucket === "fail" || c.bucket === "failed")
+      const passed = checks.filter((c) => c.state === "success" || c.state === "passed" || c.bucket === "pass" || c.bucket === "passed")
 
       if (failed.length > 0) {
-        const names = failed.map((c: any) => c.name).join(", ")
+        const names = failed.map((c) => c.name).join(", ")
         await client.app.log({
           body: {
             service: "ntech-ci-watcher",
@@ -65,17 +80,18 @@ export const CIWatcherPlugin: Plugin = async ({ client, $ }) => {
             service: "ntech-ci-watcher",
             level: "warn",
             message: `CI watch stopped after ${MAX_POLLS} polls for ${currentBranch}`,
-            extra: { pr: pr.url, pendingChecks: pending.map((c: any) => c.name) },
+            extra: { pr: pr.url, pendingChecks: pending.map((c) => c.name) },
           },
         })
         stop()
       }
-    } catch (err: any) {
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : String(err)
       await client.app.log({
         body: {
           service: "ntech-ci-watcher",
           level: "error",
-          message: `CI watch error: ${err.message || String(err)}`,
+          message: `CI watch error: ${message}`,
         },
       })
     }

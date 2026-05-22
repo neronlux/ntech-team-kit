@@ -21,7 +21,6 @@ func RunDoctor(kitRoot string) []CheckResult {
 	results = append(results, checkGhCLI())
 	results = append(results, checkGhAuth())
 	results = append(results, checkKitRoot(kitRoot))
-	results = append(results, checkLegacyInstallScript(kitRoot))
 	results = append(results, checkManifest())
 	results = append(results, checkKitContents(kitRoot))
 
@@ -68,22 +67,6 @@ func checkKitRoot(root string) CheckResult {
 	return CheckResult{Name: "Kit Root", Passed: true, Message: root}
 }
 
-func checkLegacyInstallScript(root string) CheckResult {
-	script := filepath.Join(root, "install.sh")
-	if _, err := os.Stat(script); err != nil {
-		return CheckResult{
-			Name:    "install.sh (legacy)",
-			Passed:  true,
-			Message: "not present (normal — CLI is now fully native Go)",
-		}
-	}
-	return CheckResult{
-		Name:    "install.sh (legacy)",
-		Passed:  true,
-		Message: "present (legacy — CLI no longer requires the shell script)",
-	}
-}
-
 func checkManifest() CheckResult {
 	ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
 	if ocDir == "" {
@@ -107,5 +90,5 @@ func checkKitContents(root string) CheckResult {
 		}
 		return CheckResult{Name: "Kit Contents", Passed: false, Message: msg}
 	}
-	return CheckResult{Name: "Kit Contents", Passed: true, Message: "install.sh + skills/ present and valid"}
+	return CheckResult{Name: "Kit Contents", Passed: true, Message: "skills/ + VERSION present and valid" }
 }

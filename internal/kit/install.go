@@ -9,7 +9,7 @@ import (
 	"strings"
 )
 
-// These lists must be kept in sync with install.sh
+// These lists define all kit assets. Add new skills/agents/commands/rules here.
 var (
 	skills = []string{
 		"check-compiler-errors",
@@ -53,9 +53,13 @@ var (
 		"typescript-exhaustive-switch",
 	}
 
-	pluginDep = "@opencode-ai/plugin"
-	pluginDepVersion = "^1.14.0"
+	pluginDep         = "@opencode-ai/plugin"
+	pluginDepVersion  = "^1.14.0"
 )
+
+var skillExtras = map[string][]string{
+	"pr-review-canvas": {"renderer.js", "styles.css", "template.html"},
+}
 
 type InstallOptions struct {
 	KitRoot     string
@@ -72,11 +76,7 @@ func PerformInstall(opts InstallOptions) error {
 		return fmt.Errorf("kit root is required")
 	}
 	if opts.ConfigDir == "" {
-		home, err := os.UserHomeDir()
-		if err != nil {
-			return fmt.Errorf("could not determine home directory: %w", err)
-		}
-		opts.ConfigDir = filepath.Join(home, ".config", "opencode")
+		return fmt.Errorf("config dir is required")
 	}
 	if opts.Mode == "" {
 		opts.Mode = "copy"
@@ -143,7 +143,7 @@ func PerformInstall(opts InstallOptions) error {
 		return nil
 	}
 
-	// Install skills
+	// Install skills (with any extra assets)
 	for _, skill := range skills {
 		destDir := filepath.Join(opts.ConfigDir, "skills", skill)
 		if err := installFile(
@@ -153,14 +153,12 @@ func PerformInstall(opts InstallOptions) error {
 			return err
 		}
 
-		if skill == "pr-review-canvas" {
-			for _, asset := range []string{"renderer.js", "styles.css", "template.html"} {
-				if err := installFile(
-					filepath.Join(opts.KitRoot, "skills", skill, asset),
-					filepath.Join(destDir, asset),
-				); err != nil {
-					return err
-				}
+		for _, asset := range skillExtras[skill] {
+			if err := installFile(
+				filepath.Join(opts.KitRoot, "skills", skill, asset),
+				filepath.Join(destDir, asset),
+			); err != nil {
+				return err
 			}
 		}
 	}
