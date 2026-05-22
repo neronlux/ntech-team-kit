@@ -30,31 +30,68 @@ Some skills (e.g. `run-smoke-tests`, `control-ui`) may also require tools that e
 
 ## Installation
 
+### Recommended: Homebrew (recommended for most users)
+
+```bash
+brew tap neronlux/tap
+brew install ntech-team-kit
+ntech-team-kit install
+```
+
+### From source (development)
+
 ```bash
 git clone https://github.com/neronlux/ntech-team-kit.git ~/ntech-team-kit
 cd ~/ntech-team-kit
+
+# Use the convenient launcher during development
+./bin/ntech-team-kit install
+
+# Or build the binary once
+go build -o /usr/local/bin/ntech-team-kit ./cmd/ntech-team-kit
+ntech-team-kit install
+```
+
+You can still fall back to the original shell installer if preferred:
+
+```bash
 ./install.sh
 ```
 
-This creates symlinks from the repo into `~/.config/opencode/`. All skills, agents, commands, and rules become immediately available in OpenCode.
+### Common commands
 
-### Install options
-
-| Command / Flag     | Description                              |
-|--------------------|------------------------------------------|
-| `./install.sh`     | Install using symlinks (recommended)     |
-| `./install.sh --copy` | Copy files instead of symlinking      |
-| `./install.sh --dry-run` | Preview planned changes               |
-| `./install.sh status` | Show currently installed files       |
-| `./install.sh uninstall` | Remove everything this kit installed |
+```bash
+ntech-team-kit install
+ntech-team-kit install --copy          # Copy instead of symlink
+ntech-team-kit install --dry-run
+ntech-team-kit status
+ntech-team-kit doctor                  # Highly recommended
+ntech-team-kit uninstall
+```
 
 ### Upgrade
 
 ```bash
-cd ~/ntech-team-kit && git pull && ./install.sh
+cd ~/ntech-team-kit && git pull && ntech-team-kit install
 ```
 
 Because the default mode uses symlinks, pulling the latest version is normally all you need.
+
+## The `ntech-team-kit` CLI
+
+This project includes a small, fast Go CLI:
+
+```bash
+ntech-team-kit doctor      # Run health checks (strongly recommended after install)
+ntech-team-kit status
+ntech-team-kit install
+ntech-team-kit path
+ntech-team-kit version
+```
+
+`ntech-team-kit doctor` is the best way to verify your environment is ready.
+
+Homebrew will install this same binary.
 
 ## Quick Start
 

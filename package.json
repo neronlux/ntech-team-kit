@@ -18,7 +18,9 @@
   "scripts": {
     "typecheck": "tsc --noEmit",
     "build:plugin": "bun build --target=bun --outdir=dist plugins/ci-watcher.ts",
-    "test": "bun run typecheck && echo '✓ Type checking passed' && bun build --target=bun --outdir=/tmp plugins/ci-watcher.ts && echo '✓ Plugin builds successfully'",
+    "go:build": "go build -o dist/ntech-team-kit ./cmd/ntech-team-kit",
+    "go:test": "go test ./...",
+    "test": "bun run typecheck && bun build --target=bun --outdir=/tmp plugins/ci-watcher.ts && go test ./... && echo '✓ All tests passed'",
     "vale": "vale README.md AGENTS.md"
   }
 }

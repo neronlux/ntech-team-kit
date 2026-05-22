@@ -1,0 +1,22 @@
+#!/usr/bin/env bash
+#
+# ntech-team-kit launcher
+# This script makes it easy to run the CLI during development.
+#
+# Usage:
+#   ./bin/ntech-team-kit install
+#   ./bin/ntech-team-kit doctor
+#
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+# If a pre-built binary exists in dist/, prefer it
+if [[ -x "$REPO_ROOT/dist/ntech-team-kit" ]]; then
+    exec "$REPO_ROOT/dist/ntech-team-kit" "$@"
+fi
+
+# Otherwise build on the fly (fast for Go)
+exec go run "$REPO_ROOT/cmd/ntech-team-kit" "$@"
