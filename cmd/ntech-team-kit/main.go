@@ -34,10 +34,9 @@ func main() {
 	// Resolve final kit root
 	root := resolveKitRoot()
 
-	// Pre-flight validation for any command that needs a real kit tree.
-	// This gives a clear, actionable error instead of letting install.sh
-	// fail with cryptic "cp: ... No such file or directory".
-	if command == "install" || command == "uninstall" || command == "status" || command == "update" {
+	// Pre-flight validation only for commands that read the kit source tree.
+	// uninstall and status operate purely from the user's config manifest.
+	if command == "install" || command == "update" {
 		if err := kit.ValidateKitRoot(root); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n\n", err)
 			fmt.Fprintln(os.Stderr, "Use --root <path> or NTECH_TEAM_KIT_ROOT=/path/to/kit to override.")
@@ -47,7 +46,7 @@ func main() {
 
 	switch command {
 	case "install":
-		// Use the robust pure-Go installer (no shell fragility)
+		// Robust pure-Go installer
 		mode := "copy"
 		for _, a := range args {
 			if a == "--link" {
@@ -68,9 +67,24 @@ func main() {
 			os.Exit(1)
 		}
 
-	case "uninstall", "status":
-		// These still use the shell script (they operate on the manifest)
-		if err := kit.RunInstaller(root, append([]string{command}, args...)); err != nil {
+	case "uninstall":
+		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
+		if ocDir == "" {
+			home, _ := os.UserHomeDir()
+			ocDir = filepath.Join(home, ".config", "opencode")
+		}
+		if err := kit.PerformUninstall(ocDir); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "status":
+		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
+		if ocDir == "" {
+			home, _ := os.UserHomeDir()
+			ocDir = filepath.Join(home, ".config", "opencode")
+		}
+		if err := kit.PrintStatus(ocDir); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

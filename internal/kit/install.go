@@ -284,24 +284,90 @@ func ensurePluginDependency(ocDir string, dryRun bool) error {
 	return os.WriteFile(pkgPath, b, 0o644)
 }
 
-// PerformUninstall removes everything tracked by the manifest.
-func PerformUninstall(ocDir string) error {
+// logPrefix prints consistent with the old install.sh
+func logPrefix(format string, a ...any) {
+	fmt.Printf("[ntech-team-kit] "+format+"\n", a...)
+}
+
+// PrintStatus replicates the original do_status behavior using the manifest.
+func PrintStatus(ocDir string) error {
 	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
+
 	data, err := os.ReadFile(manifest)
 	if err != nil {
-		return fmt.Errorf("no manifest found — nothing to uninstall")
+		logPrefix("not installed (no manifest at %s)", manifest)
+		return nil
 	}
 
 	lines := strings.Split(string(data), "\n")
+	count := 0
 	for _, line := range lines {
-		line = strings.TrimSpace(line)
-		if line == "" {
-			continue
+		if strings.TrimSpace(line) != "" {
+			count++
 		}
-		_ = os.Remove(line)
 	}
 
-	// Clean up empty skill dirs etc.
+	logPrefix("%d files tracked in manifest", count)
+
+	broken := 0
+	for _, line := range lines {
+		path := strings.TrimSpace(line)
+		if path == "" {
+			continue
+		}
+		if _, err := os.Stat(path); err != nil {
+			logPrefix("  MISSING: %s", path)
+			broken++
+		}
+	}
+
+	if broken == 0 {
+		logPrefix("all files present")
+	} else {
+		logPrefix("%d files missing — consider reinstalling", broken)
+	}
+	return nil
+}
+
+// PerformUninstall removes all files listed in the manifest and cleans up
+// empty per-skill directories, matching the original shell behavior.
+func PerformUninstall(ocDir string) error {
+	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
+
+	data, err := os.ReadFile(manifest)
+	if err != nil {
+		logPrefix("no manifest found at %s — nothing to uninstall", manifest)
+		return nil
+	}
+
+	lines := strings.Split(string(data), "\n")
+	removed := 0
+	for _, line := range lines {
+		path := strings.TrimSpace(line)
+		if path == "" {
+			continue
+		}
+		if _, err := os.Stat(path); err == nil {
+			if err := os.Remove(path); err == nil {
+				removed++
+			}
+		}
+	}
+
+	// Remove empty skill subdirectories (same as original do_uninstall)
+	skillBase := filepath.Join(ocDir, "skills")
+	for _, skill := range skills {
+		dir := filepath.Join(skillBase, skill)
+		if info, err := os.Stat(dir); err == nil && info.IsDir() {
+			entries, _ := os.ReadDir(dir)
+			if len(entries) == 0 {
+				_ = os.Remove(dir)
+			}
+		}
+	}
+
 	_ = os.Remove(manifest)
+
+	logPrefix("uninstalled %d files", removed)
 	return nil
 }
