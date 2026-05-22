@@ -1,0 +1,93 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.22'
+
+      - name: Calculate source tarball SHA256
+        id: sha
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          TARBALL_URL="https://github.com/neronlux/ntech-team-kit/archive/refs/tags/${TAG}.tar.gz"
+          echo "Downloading ${TARBALL_URL} to compute SHA256..."
+          curl -sL "$TARBALL_URL" -o /tmp/ntech-team-kit.tar.gz
+          SHA256=$(shasum -a 256 /tmp/ntech-team-kit.tar.gz | cut -d' ' -f1)
+          echo "sha256=$SHA256" >> $GITHUB_OUTPUT
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          echo "tarball_url=$TARBALL_URL" >> $GITHUB_OUTPUT
+
+      - name: Update Formula with new SHA256 (in this repo as reference)
+        run: |
+          TAG=${{ steps.sha.outputs.tag }}
+          SHA256=${{ steps.sha.outputs.sha256 }}
+
+          sed -i "s|REPLACE_WITH_ACTUAL_SHA256|${SHA256}|g" Formula/ntech-team-kit.rb
+          sed -i "s|url \".*ntech-team-kit/archive/refs/tags/.*\"|url \"https://github.com/neronlux/ntech-team-kit/archive/refs/tags/${TAG}.tar.gz\"|g" Formula/ntech-team-kit.rb
+
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add Formula/ntech-team-kit.rb
+          git commit -m "chore(release): update formula SHA256 for ${TAG}" || echo "No changes to formula"
+          git push origin HEAD:main || echo "Nothing to push"
+
+      - name: Create/Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.sha.outputs.tag }}
+          name: Release ${{ steps.sha.outputs.tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          body: |
+            ## Installation
+
+            ### Homebrew (recommended)
+
+            ```bash
+            brew tap neronlux/tap
+            brew install ntech-team-kit
+            ntech-team-kit install
+            ```
+
+            ### From source
+
+            ```bash
+            git clone https://github.com/neronlux/ntech-team-kit.git
+            cd ntech-team-kit
+            ./bin/ntech-team-kit install
+            ```
+
+            **New in this release**: Go CLI wrapper + `ntech-team-kit doctor` command.
+
+            Full SHA256 of source tarball: `${{ steps.sha.outputs.sha256 }}`
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Output formula update info
+        run: |
+          echo "=== Formula update for tap ==="
+          echo "Tag: ${{ steps.sha.outputs.tag }}"
+          echo "SHA256: ${{ steps.sha.outputs.sha256 }}"
+          echo ""
+          echo "Next step: Update neronlux/homebrew-tap with the new SHA256 above."
+          echo "You can copy the updated Formula/ntech-team-kit.rb from this commit."
