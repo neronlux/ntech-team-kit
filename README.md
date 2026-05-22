@@ -54,14 +54,14 @@ go build -o /usr/local/bin/ntech-team-kit ./cmd/ntech-team-kit
 ntech-team-kit install
 ```
 
-The Go binary is the primary and recommended interface. We keep `install.sh` only for people who want to run it directly from source (legacy path).
+The Go binary is the primary and recommended interface.
 
 ### CLI reference
 
 ```bash
 ntech-team-kit install                 # Install / refresh skills, agents, commands, rules
 ntech-team-kit update                  # Check for updates + refresh all content (recommended)
-ntech-team-kit doctor                  # Health check (includes legacy script status) + daily update hint
+ntech-team-kit doctor                  # Health check (OpenCode, gh, auth, kit layout) + daily update hint
 ntech-team-kit status                  # Show what is currently installed
 ntech-team-kit version                 # Print the CLI version
 ntech-team-kit path                    # Show the resolved kit root
@@ -93,9 +93,9 @@ ntech-team-kit update
 - Reports whether a newer CLI binary is available on GitHub
 - Always copies the latest skills, agents, commands, and rules from the current kit tree into your OpenCode config
 
-The entire installation, update, uninstall, and status logic is now implemented in pure Go (no shell script delegation). This eliminates previous fragility on macOS and makes behavior consistent across environments.
+The entire installation, update, uninstall, and status logic is implemented in pure Go. This eliminates previous fragility on macOS and makes behavior consistent across environments.
 
-`ntech-team-kit doctor` will also print a polite one-line hint (at most once per day) when it detects a newer version. It surfaces the status of the legacy `install.sh` as an informational (non-blocking) note.
+`ntech-team-kit doctor` will also print a polite one-line hint (at most once per day) when it detects a newer version.
 
 After any `git pull` or `brew upgrade`, running `update` (or just `doctor`) is the fastest way to stay current.
 
@@ -109,8 +109,7 @@ The `ntech-team-kit` CLI is a small, self-contained Go program:
 - All major commands (`install`, `update`, `uninstall`, `status`, `doctor`) run natively — the CLI no longer delegates to shell scripts
 - **Kit root resolution** uses (in order): `NTECH_TEAM_KIT_ROOT` env var, compiled ldflags (for Homebrew), or automatic detection from the binary location
 - **Content installation** copies files from the resolved kit root (`skills/`, `agents/`, `commands/`, etc.) into `~/.config/opencode/`
-- We keep **`install.sh`** only for direct execution from a source checkout (legacy path). The CLI no longer depends on it
-- **`doctor`** validates both your environment and that the detected kit root contains the expected files
+- **`doctor`** validates both your environment and that the detected kit root contains the expected files (`skills/` directory and `VERSION`)
 
 This architecture removes previous cross-platform fragility and makes `update` and `install` reliable and deterministic.
 
@@ -237,7 +236,7 @@ Merge the relevant parts into your own `~/.config/opencode/opencode.json` if des
 
 | Area                    | Cursor Team Kit                  | ntech-team-kit (OpenCode)                  |
 |-------------------------|----------------------------------|--------------------------------------------|
-| Installation            | `/add-plugin`                    | `git clone` + `ntech-team-kit install` (pure Go; `./install.sh` is legacy) |
+| Installation            | `/add-plugin`                    | `brew install ntech-team-kit` or `git clone` + `ntech-team-kit install` |
 | Plugin system           | Cursor plugin manifest           | OpenCode skills + agents + local plugin    |
 | Background agents       | `is_background: true`            | Real TypeScript plugin using session events|
 | Rules                   | `.mdc` files with `alwaysApply`  | Loaded via `instructions` glob + `AGENTS.md` |
