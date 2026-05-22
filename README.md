@@ -101,6 +101,19 @@ After any `git pull` or `brew upgrade`, running `update` (or just `doctor`) is t
 
 See the full CLI reference in the Installation section above. Homebrew ships the exact same binary.
 
+## Architecture
+
+The `ntech-team-kit` CLI is a small, self-contained Go program:
+
+- **Core logic** lives in pure Go (`cmd/ntech-team-kit` + `internal/kit/`)
+- All major commands (`install`, `update`, `uninstall`, `status`, `doctor`) run natively — the CLI no longer delegates to shell scripts
+- **Kit root resolution** uses (in order): `NTECH_TEAM_KIT_ROOT` env var, compiled ldflags (for Homebrew), or automatic detection from the binary location
+- **Content installation** copies files from the resolved kit root (`skills/`, `agents/`, `commands/`, etc.) into `~/.config/opencode/`
+- We keep **`install.sh`** only for direct execution from a source checkout (legacy path). The CLI no longer depends on it
+- **`doctor`** validates both your environment and that the detected kit root contains the expected files
+
+This architecture removes previous cross-platform fragility and makes `update` and `install` reliable and deterministic.
+
 ## Quick Start
 
 Here are the most common ways people use the kit:
