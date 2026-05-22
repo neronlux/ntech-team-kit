@@ -1,0 +1,24 @@
+{
+  "name": "ntech-team-kit",
+  "private": true,
+  "description": "OpenCode-native skills, agents, commands, and plugins ported from cursor-team-kit.",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/neronlux/ntech-team-kit.git"
+  },
+  "homepage": "https://github.com/neronlux/ntech-team-kit#readme",
+  "dependencies": {
+    "@opencode-ai/plugin": "^1.14.0"
+  },
+  "devDependencies": {
+    "@types/bun": "^1.3.14",
+    "typescript": "^6.0.3"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit",
+    "build:plugin": "bun build --target=bun --outdir=dist plugins/ci-watcher.ts",
+    "test": "bun run typecheck && echo '✓ Type checking passed' && bun build --target=bun --outdir=/tmp plugins/ci-watcher.ts && echo '✓ Plugin builds successfully'",
+    "vale": "vale README.md AGENTS.md"
+  }
+}

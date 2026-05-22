@@ -1,0 +1,42 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+
+  "instructions": ["rules/*.md"],
+
+  "permission": {
+    "skill": {
+      "*": "allow",
+      "thermo-nuclear-code-quality-review": "ask"
+    }
+  },
+
+  "agent": {
+    "ci-watcher": {
+      "description": "Watch PR CI for the current branch and report pass/fail with relevant failure links.",
+      "mode": "subagent",
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "gh *": "allow",
+          "git *": "allow"
+        }
+      }
+    },
+    "thermo-nuclear-code-quality-review": {
+      "description": "Thermo-nuclear code quality audit invoked via Task after gathering diff and file contents.",
+      "mode": "subagent",
+      "hidden": true,
+      "permission": {
+        "edit": "deny",
+        "bash": {
+          "*": "deny",
+          "git diff*": "allow",
+          "git log*": "allow"
+        }
+      }
+    }
+  },
+
+  "plugin": []
+}
