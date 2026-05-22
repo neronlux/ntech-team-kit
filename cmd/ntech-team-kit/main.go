@@ -46,8 +46,30 @@ func main() {
 	}
 
 	switch command {
-	case "install", "uninstall", "status":
-		// Delegate to the battle-tested install.sh
+	case "install":
+		// Use the robust pure-Go installer (no shell fragility)
+		mode := "copy"
+		for _, a := range args {
+			if a == "--link" {
+				mode = "link"
+			}
+		}
+		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
+		if ocDir == "" {
+			home, _ := os.UserHomeDir()
+			ocDir = filepath.Join(home, ".config", "opencode")
+		}
+		if err := kit.PerformInstall(kit.InstallOptions{
+			KitRoot:   root,
+			ConfigDir: ocDir,
+			Mode:      mode,
+		}); err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+
+	case "uninstall", "status":
+		// These still use the shell script (they operate on the manifest)
 		if err := kit.RunInstaller(root, append([]string{command}, args...)); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
@@ -69,11 +91,19 @@ func main() {
 			fmt.Printf("Could not reach GitHub for version check: %v\n", err)
 		}
 
-		// 2. Always refresh the kit content (skills, agents, commands, rules)
-		//    from the currently resolved kit tree. This pulls any newly added
-		//    skills/agents even if the binary version is unchanged.
+		// 2. Always refresh the kit content using the robust pure-Go installer.
+		//    This is the critical path that must never fail with cryptic errors.
 		fmt.Println("\n→ Refreshing skills, agents, commands and rules into OpenCode config...")
-		if err := kit.RunInstaller(root, []string{"install"}); err != nil {
+		ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
+		if ocDir == "" {
+			home, _ := os.UserHomeDir()
+			ocDir = filepath.Join(home, ".config", "opencode")
+		}
+		if err := kit.PerformInstall(kit.InstallOptions{
+			KitRoot:   root,
+			ConfigDir: ocDir,
+			Mode:      "copy",
+		}); err != nil {
 			fmt.Fprintf(os.Stderr, "Content refresh failed: %v\n", err)
 			os.Exit(1)
 		}
