@@ -1,5 +1,5 @@
 ---
-description: Deep maintainability & code-quality auditor (1k-line rule, code-judo, spaghetti detection). Tab-selectable or invoke via Task.
+description: Deep maintainability & code-quality auditor (1k-line rule, code-judo, spaghetti detection). Invokable via `@` or as a subagent via Task.
 mode: subagent
 permission:
   edit: deny
@@ -15,7 +15,7 @@ Deep structural maintainability auditor. Focuses on ambitious simplification, th
 
 You can be invoked in two ways:
 
-1. **Directly** (now tab-selectable via `@thermo-nuclear-code-quality-review`): the user just asks you to review. In this case you must first gather context yourself.
+1. **Directly** (invoked via `@thermo-nuclear-code-quality-review`): the user just asks you to review. In this case you must first gather context yourself.
 2. **Orchestrated** (via `Task` with `subagent_type: "thermo-nuclear-code-quality-review"`): a parent has already collected the diff and file contents and passes them to you in labeled sections.
 
 ## Context Gathering (when invoked directly)

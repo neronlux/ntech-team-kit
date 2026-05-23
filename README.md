@@ -9,7 +9,7 @@ If you like the rigorous internal workflows Cursor uses for code review, CI loop
 | Component | Count | Description |
 |-----------|-------|-------------|
 | Skills | 18 | On-demand workflows for CI, code review, shipping, verification, and code quality |
-| Agents | 2 | Specialized subagents, tab-selectable via `@` in OpenCode |
+| Agents | 2 | Specialized subagents, invoked via `@agent-name` in OpenCode |
 | Commands | 18 | `/command` shortcuts for every skill (1:1 with skills) |
 | Rules | 2 | Automatically loaded coding standards (no inline imports, exhaustive TypeScript switches) |
 | Plugin | 1 | Background CI watcher for proactive PR monitoring |
@@ -155,7 +155,7 @@ Skills load on demand when invoked via the `skill` tool or `/command`.
 
 ## Agents
 
-Both agents are tab-selectable via `@` in OpenCode.
+Both agents are invokable via `@agent-name` in OpenCode.
 
 | Agent | Description |
 |-------|-------------|
