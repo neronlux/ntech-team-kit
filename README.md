@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="https://assets.ntek.app/ntechteamkit.jpg" alt="ntech-team-kit" width="400" />
+</p>
+
 # ntech-team-kit
 
 A portable, production-grade collection of skills, agents, commands, and rules that bring [Cursor Team Kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) workflows to [OpenCode](https://opencode.ai).

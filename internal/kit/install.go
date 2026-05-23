@@ -213,14 +213,15 @@ func PerformInstall(opts InstallOptions) error {
 	}
 
 	if !opts.DryRun {
-		fmt.Printf("ntech-team-kit: install complete (%s mode)\n", opts.Mode)
+		printBanner()
+		fmt.Printf("  install complete (%s mode)\n", opts.Mode)
 		fmt.Printf("  skills:   %d\n", len(skills))
 		fmt.Printf("  agents:   %d\n", len(agents))
 		fmt.Printf("  commands: %d\n", len(commands))
 		fmt.Printf("  rules:    %d\n", len(rules))
 		fmt.Printf("  plugins:  1 (ci-watcher)\n")
-		fmt.Println("\nTo enable background CI watching, set:")
-		fmt.Println("  export OPENCODE_NTECH_CI_WATCH=1")
+		fmt.Println("\n  To enable background CI watching, set:")
+		fmt.Println("    export OPENCODE_NTECH_CI_WATCH=1")
 	}
 
 	return nil
@@ -355,7 +356,16 @@ func writeManifest(path string, lines []string) error {
 	return os.Rename(tmpName, path)
 }
 
-// logPrefix prints consistent with the old install.sh
+func printBanner() {
+	fmt.Print(`
+  _   _ _______ _    _  _____  _    _ _   _ _____ _____
+ | \ | |__   __| |  | |/ ____| |  | | \ | |_   _/ ____|
+ |  \| |  | |  | |__| | (___   |  | |  \| | | || |
+ |     |  | |  |  __  |\___ \  |  | |     | | || |
+ | |\  |  | |  | |  | |____) | |__| | |\  |_| || |____
+ |_| \_|  |_|  |_|  |_|_____/ \____/|_| \_|_____\_____|
+`)
+}
 func logPrefix(format string, a ...any) {
 	fmt.Printf("[ntech-team-kit] "+format+"\n", a...)
 }
