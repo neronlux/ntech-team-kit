@@ -214,14 +214,14 @@ func PerformInstall(opts InstallOptions) error {
 
 	if !opts.DryRun {
 		printBanner()
-		fmt.Printf("    install complete (%s mode)\n", opts.Mode)
-		fmt.Printf("    skills:   %d\n", len(skills))
-		fmt.Printf("    agents:   %d\n", len(agents))
-		fmt.Printf("    commands: %d\n", len(commands))
-		fmt.Printf("    rules:    %d\n", len(rules))
-		fmt.Printf("    plugins:  1 (ci-watcher)\n")
-		fmt.Println("\n    To enable background CI watching, set:")
-		fmt.Println("      export OPENCODE_NTECH_CI_WATCH=1")
+		fmt.Printf("  install complete (%s mode)\n", opts.Mode)
+		fmt.Printf("  skills:   %d\n", len(skills))
+		fmt.Printf("  agents:   %d\n", len(agents))
+		fmt.Printf("  commands: %d\n", len(commands))
+		fmt.Printf("  rules:    %d\n", len(rules))
+		fmt.Printf("  plugins:  1 (ci-watcher)\n")
+		fmt.Println("\n  To enable background CI watching, set:")
+		fmt.Println("    export OPENCODE_NTECH_CI_WATCH=1")
 	}
 
 	return nil
@@ -363,7 +363,7 @@ func printBanner() {
 | '_ \| |/ _ \/ __| '_ \ 
 | | | | |  __/ (__| | | |
 |_| |_|_|\___|\___|_| |_|
-       ntech-team-kit
+  ntech-team-kit
 `)
 }
 func logPrefix(format string, a ...any) {
