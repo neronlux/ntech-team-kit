@@ -38,14 +38,24 @@ var (
 	}
 
 	commands = []string{
-		"review-and-ship",
-		"loop-on-ci",
-		"verify-this",
-		"run-smoke-tests",
+		"check-compiler-errors",
+		"control-cli",
+		"control-ui",
+		"deslop",
 		"fix-ci",
-		"new-branch-and-pr",
-		"make-pr-easy-to-review",
 		"fix-merge-conflicts",
+		"get-pr-comments",
+		"loop-on-ci",
+		"make-pr-easy-to-review",
+		"new-branch-and-pr",
+		"pr-review-canvas",
+		"review-and-ship",
+		"run-smoke-tests",
+		"thermo-nuclear-code-quality-review",
+		"verify-this",
+		"weekly-review",
+		"what-did-i-get-done",
+		"workflow-from-chats",
 	}
 
 	rules = []string{

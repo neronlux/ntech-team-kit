@@ -11,3 +11,7 @@ Always place imports at the top of the module. Avoid inline imports in function 
 ### TypeScript exhaustive switch
 
 In switch statements over discriminated unions or enums, use a `never` check in the default case so newly added variants cause compile-time failures until handled.
+
+### Every skill must have a command
+
+When adding a new skill to `skills/`, you must also create a matching `commands/<skill-name>.md` and add the name to the `commands` slice in `internal/kit/install.go`. Skills and commands must stay 1:1 so users can invoke every skill via `/command`. When in this repo, verify the lists match before completing any task that touches skills or install.go.
