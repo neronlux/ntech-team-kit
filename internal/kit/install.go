@@ -358,12 +358,12 @@ func writeManifest(path string, lines []string) error {
 
 func printBanner() {
 	fmt.Print(`
-     _   _ _______ _____
-    | \ | |__   __/ ____|
-    |  \| |  | | | (___
-    |     |  | |  \___ \
-    | |\  |  | |  ____) |
-    |_| \_|  |_| |_____/
+      _   _ _____
+     | \ | |_   _|
+     |  \| | | |
+     |     | | |
+     | |\  | | |
+     |_| \_| |_|
     ntech-team-kit
 `)
 }
