@@ -10,7 +10,7 @@ If you like the rigorous internal workflows Cursor uses for code review, CI loop
 |-----------|-------|-------------|
 | Skills | 18 | On-demand workflows for CI, code review, shipping, verification, and code quality |
 | Agents | 2 | Specialized subagents, tab-selectable via `@` in OpenCode |
-| Commands | 8 | Convenient `/command` shortcuts for the most common workflows |
+| Commands | 18 | `/command` shortcuts for every skill (1:1 with skills) |
 | Rules | 2 | Automatically loaded coding standards (no inline imports, exhaustive TypeScript switches) |
 | Plugin | 1 | Background CI watcher for proactive PR monitoring |
 
@@ -168,14 +168,24 @@ Type `/` in OpenCode to see available commands:
 
 | Command | Skill | What it does |
 |---------|-------|--------------|
-| `/review-and-ship` | `review-and-ship` | Review, test, commit, and ship |
-| `/loop-on-ci` | `loop-on-ci` | Watch CI and fix until green |
-| `/verify-this` | `verify-this` | Prove or disprove a claim |
-| `/run-smoke-tests` | `run-smoke-tests` | Run Playwright smoke tests |
+| `/check-compiler-errors` | `check-compiler-errors` | Run compile/type-check and fix failures |
+| `/control-cli` | `control-cli` | Drive and inspect an interactive CLI or TUI |
+| `/control-ui` | `control-ui` | Drive and inspect a web or Electron UI |
+| `/deslop` | `deslop` | Remove AI-generated code slop |
 | `/fix-ci` | `fix-ci` | Fix the first failing CI check |
-| `/new-branch-and-pr` | `new-branch-and-pr` | Start fresh work with a PR |
-| `/make-pr-easy-to-review` | `make-pr-easy-to-review` | Prepare a PR for review |
 | `/fix-merge-conflicts` | `fix-merge-conflicts` | Resolve merge conflicts |
+| `/get-pr-comments` | `get-pr-comments` | Summarize PR review feedback |
+| `/loop-on-ci` | `loop-on-ci` | Watch CI and fix until green |
+| `/make-pr-easy-to-review` | `make-pr-easy-to-review` | Prepare a PR for review |
+| `/new-branch-and-pr` | `new-branch-and-pr` | Start fresh work with a PR |
+| `/pr-review-canvas` | `pr-review-canvas` | Generate an interactive HTML PR walkthrough |
+| `/review-and-ship` | `review-and-ship` | Review, test, commit, and ship |
+| `/run-smoke-tests` | `run-smoke-tests` | Run Playwright smoke tests |
+| `/thermo-nuclear-code-quality-review` | `thermo-nuclear-code-quality-review` | Strict maintainability audit |
+| `/verify-this` | `verify-this` | Prove or disprove a claim |
+| `/weekly-review` | `weekly-review` | Weekly work summary |
+| `/what-did-i-get-done` | `what-did-i-get-done` | Status update from commit history |
+| `/workflow-from-chats` | `workflow-from-chats` | Extract preferences into skills or rules |
 
 ## Rules
 
