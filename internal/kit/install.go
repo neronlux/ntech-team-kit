@@ -358,13 +358,12 @@ func writeManifest(path string, lines []string) error {
 
 func printBanner() {
 	fmt.Print(`
-      _   _ _____
-     | \ | |_   _|
-     |  \| | | |
-     |     | | |
-     | |\  | | |
-     |_| \_| |_|
-    ntech-team-kit
+     _____         _     
+ _ _|_   _|__  ___| |__  
+| '_ \| |/ _ \/ __| '_ \ 
+| | | | |  __/ (__| | | |
+|_| |_|_|\___|\___|_| |_|
+ntech-team-kit
 `)
 }
 func logPrefix(format string, a ...any) {
