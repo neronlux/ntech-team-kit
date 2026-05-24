@@ -76,8 +76,16 @@ ntech-team-kit uninstall           Remove all installed files
 **Homebrew:**
 
 ```bash
+brew update
 brew upgrade ntech-team-kit
 ntech-team-kit update
+```
+
+If Homebrew tries to upgrade to an old version, refresh the tap first:
+
+```bash
+brew update
+brew info neronlux/tap/ntech-team-kit
 ```
 
 **Source:**
