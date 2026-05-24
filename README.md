@@ -72,9 +72,9 @@ ntech-team-kit path                    Print the resolved kit root directory
 Running `ntech-team-kit` with no arguments opens a guided menu:
 
 ```
-  ntech-team-kit 0.1.29
+  ntech-team-kit 0.1.31
   ─────────────────────────────
-  Kit root: /opt/homebrew/Cellar/ntech-team-kit/0.1.29
+  Kit root: /opt/homebrew/Cellar/ntech-team-kit/0.1.31
   Installed: 44 files
   ─────────────────────────────
 
@@ -323,9 +323,10 @@ For first-time installs, `ntech-team-kit install` copies this config into `~/.co
 
 ## Architecture
 
-The CLI is a self-contained Go program (`cmd/ntech-team-kit` + `internal/kit/`):
+The CLI is a self-contained Go program (`cmd/ntech-team-kit/` + `internal/kit/`):
 
 - **Pure Go** — all commands run natively with no shell script delegation
+- **Modular layout** — `main.go` (entry point and dispatch), `interactive.go` (menu and prompts), `args.go` (CLI argument parsing)
 - **Interactive mode** — guided menu with numbered component picker, confirmation prompts, and piped-stdin detection
 - **Component packs** — install full, lite, agents-only, skills-only, or cherry-pick individual components
 - **Partial install/uninstall** — manifest tracks component ownership so you can add or remove components without touching others
@@ -360,7 +361,7 @@ bun install                     # Install dev dependencies
 bun run typecheck               # TypeScript type checking
 bun run build:plugin            # Build the CI watcher plugin
 go build ./cmd/ntech-team-kit   # Build the CLI
-go test ./...                   # Run Go tests (28 tests)
+go test ./...                   # Run Go tests (29 tests)
 bun run test                    # Full suite: typecheck + build + Go tests
 bun run vale                    # Lint documentation prose
 ```
