@@ -1,8 +1,8 @@
 class NtechTeamKit < Formula
   desc "OpenCode-native skills, agents, commands, and rules (Cursor Team Kit port)"
   homepage "https://github.com/neronlux/ntech-team-kit"
-  url "https://github.com/neronlux/ntech-team-kit/archive/refs/tags/v0.1.31.tar.gz"
-  sha256 "a952bae0e10e78c472b35c91a80c8d615c6e123013418d50bc14e14595cd2aab"
+  url "https://github.com/neronlux/ntech-team-kit/archive/refs/tags/v0.1.32.tar.gz"
+  sha256 "9a1fc77e7e955d68c17843ce6dd7dfdba84f6ae8e7f55c18de8591f92d02062a"
   license "MIT"
   head "https://github.com/neronlux/ntech-team-kit.git", branch: "main"
 
