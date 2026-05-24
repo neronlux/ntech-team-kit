@@ -35,13 +35,17 @@ func CheckForUpdate(currentVersion string) (string, bool, error) {
 	}
 
 	latest := strings.TrimPrefix(rel.TagName, "v")
-	current := strings.TrimPrefix(currentVersion, "v")
-
-	if latest == "" || latest == current {
-		return latest, false, nil
+	if IsNewerVersion(currentVersion, latest) {
+		return latest, true, nil
 	}
+	return latest, false, nil
+}
 
-	return latest, true, nil
+// IsNewerVersion returns true if latest differs from current after normalizing "v" prefixes.
+func IsNewerVersion(current, latest string) bool {
+	current = strings.TrimPrefix(current, "v")
+	latest = strings.TrimPrefix(latest, "v")
+	return latest != "" && latest != current
 }
 
 // GetLatestVersion fetches just the tag (for doctor/version banners).
@@ -55,7 +59,10 @@ func GetLatestVersion() (string, error) {
 
 func fetchLatestRelease() (*githubRelease, error) {
 	client := &http.Client{Timeout: defaultTimeout}
-	req, _ := http.NewRequest("GET", releasesAPI, nil)
+	req, err := http.NewRequest("GET", releasesAPI, nil)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create request: %w", err)
+	}
 	req.Header.Set("Accept", "application/vnd.github+json")
 	req.Header.Set("User-Agent", "ntech-team-kit")
 

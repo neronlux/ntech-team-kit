@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"path/filepath"
 	"strings"
@@ -37,26 +38,7 @@ var (
 		"thermo-nuclear-code-quality-review",
 	}
 
-	commands = []string{
-		"check-compiler-errors",
-		"control-cli",
-		"control-ui",
-		"deslop",
-		"fix-ci",
-		"fix-merge-conflicts",
-		"get-pr-comments",
-		"loop-on-ci",
-		"make-pr-easy-to-review",
-		"new-branch-and-pr",
-		"pr-review-canvas",
-		"review-and-ship",
-		"run-smoke-tests",
-		"thermo-nuclear-code-quality-review",
-		"verify-this",
-		"weekly-review",
-		"what-did-i-get-done",
-		"workflow-from-chats",
-	}
+	commands = skills[:]
 
 	rules = []string{
 		"no-inline-imports",
@@ -111,6 +93,9 @@ func ValidComponent(name string) bool {
 	}
 }
 
+// IncludesOrAll reports whether the component is in the set.
+// An empty set means "all components included", which is the desired default
+// for uninstall and update flows where no filter means "everything".
 func (c ComponentSet) Includes(name string) bool {
 	return len(c) == 0 || c[name]
 }
@@ -151,6 +136,9 @@ func PerformInstall(opts InstallOptions) error {
 	}
 	if opts.Mode == "" {
 		opts.Mode = "copy"
+	}
+	if opts.Mode != "copy" && opts.Mode != "link" {
+		return fmt.Errorf("invalid mode %q (expected copy or link)", opts.Mode)
 	}
 	if len(opts.Components) == 0 {
 		opts.Components = FullComponentSet()
@@ -411,7 +399,10 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// ensurePluginDependency keeps the OpenCode plugin dependency available.
+type packageJSON struct {
+	Dependencies map[string]string `json:"dependencies"`
+}
+
 func ensurePluginDependency(ocDir string, dryRun bool) error {
 	pkgPath := filepath.Join(ocDir, "package.json")
 
@@ -421,35 +412,37 @@ func ensurePluginDependency(ocDir string, dryRun bool) error {
 
 	data, err := os.ReadFile(pkgPath)
 	if err != nil {
-		// File doesn't exist — create a minimal one
-		pkg := map[string]any{
-			"dependencies": map[string]string{
+		pkg := packageJSON{
+			Dependencies: map[string]string{
 				pluginDep: pluginDepVersion,
 			},
 		}
-		b, _ := json.MarshalIndent(pkg, "", "  ")
+		b, err := json.MarshalIndent(pkg, "", "  ")
+		if err != nil {
+			return fmt.Errorf("failed to marshal package.json: %w", err)
+		}
 		return os.WriteFile(pkgPath, b, 0o644)
 	}
 
-	var pkg map[string]any
+	var pkg packageJSON
 	if err := json.Unmarshal(data, &pkg); err != nil {
 		return fmt.Errorf("invalid package.json: %w", err)
 	}
 
-	deps, ok := pkg["dependencies"].(map[string]any)
-	if !ok {
-		deps = map[string]any{}
-		pkg["dependencies"] = deps
+	if pkg.Dependencies == nil {
+		pkg.Dependencies = map[string]string{}
 	}
 
-	if _, exists := deps[pluginDep]; exists {
-		return nil // already present
+	if _, exists := pkg.Dependencies[pluginDep]; exists {
+		return nil
 	}
 
-	deps[pluginDep] = pluginDepVersion
+	pkg.Dependencies[pluginDep] = pluginDepVersion
 
-	b, _ := json.MarshalIndent(pkg, "", "  ")
-	// backup
+	b, err := json.MarshalIndent(pkg, "", "  ")
+	if err != nil {
+		return fmt.Errorf("failed to marshal package.json: %w", err)
+	}
 	_ = os.WriteFile(pkgPath+".ntech-team-kit.bak", data, 0o644)
 	return os.WriteFile(pkgPath, b, 0o644)
 }
@@ -494,9 +487,6 @@ func printBanner() {
   ntech-team-kit
 `)
 }
-func logPrefix(format string, a ...any) {
-	fmt.Printf("[ntech-team-kit] "+format+"\n", a...)
-}
 
 // PrintStatus replicates the original do_status behavior using the manifest.
 func PrintStatus(ocDir string) error {
@@ -504,24 +494,24 @@ func PrintStatus(ocDir string) error {
 
 	entries, err := readManifest(manifest, ocDir)
 	if err != nil {
-		logPrefix("not installed (no manifest at %s)", manifest)
+		log.Printf("[ntech-team-kit] not installed (no manifest at %s)", manifest)
 		return nil
 	}
 
-	logPrefix("%d files tracked in manifest", len(entries))
+	log.Printf("[ntech-team-kit] %d files tracked in manifest", len(entries))
 
 	broken := 0
 	for _, entry := range entries {
 		if _, err := os.Stat(entry.Path); err != nil {
-			logPrefix("  MISSING: %s", entry.Path)
+			log.Printf("[ntech-team-kit]   MISSING: %s", entry.Path)
 			broken++
 		}
 	}
 
 	if broken == 0 {
-		logPrefix("all files present")
+		log.Printf("[ntech-team-kit] all files present")
 	} else {
-		logPrefix("%d files missing — consider reinstalling", broken)
+		log.Printf("[ntech-team-kit] %d files missing — consider reinstalling", broken)
 	}
 	return nil
 }
@@ -536,7 +526,7 @@ func PerformUninstallSelected(ocDir string, components ComponentSet) error {
 
 	entries, err := readManifest(manifest, ocDir)
 	if err != nil {
-		logPrefix("no manifest found at %s — nothing to uninstall", manifest)
+		log.Printf("[ntech-team-kit] no manifest found at %s — nothing to uninstall", manifest)
 		return nil
 	}
 
@@ -562,7 +552,7 @@ func PerformUninstallSelected(ocDir string, components ComponentSet) error {
 		return fmt.Errorf("failed to update manifest: %w", err)
 	}
 
-	logPrefix("uninstalled %d files", removed)
+	log.Printf("[ntech-team-kit] uninstalled %d files", removed)
 	return nil
 }
 

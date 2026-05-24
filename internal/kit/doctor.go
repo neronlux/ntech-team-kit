@@ -15,13 +15,17 @@ type CheckResult struct {
 }
 
 func RunDoctor(kitRoot string) []CheckResult {
+	return RunDoctorWithDir(kitRoot, ConfigDir())
+}
+
+func RunDoctorWithDir(kitRoot string, ocDir string) []CheckResult {
 	var results []CheckResult
 
 	results = append(results, checkOpenCode())
 	results = append(results, checkGhCLI())
 	results = append(results, checkGhAuth())
 	results = append(results, checkKitRoot(kitRoot))
-	results = append(results, checkManifest())
+	results = append(results, checkManifest(ocDir))
 	results = append(results, checkKitContents(kitRoot))
 
 	return results
@@ -67,11 +71,7 @@ func checkKitRoot(root string) CheckResult {
 	return CheckResult{Name: "Kit Root", Passed: true, Message: root}
 }
 
-func checkManifest() CheckResult {
-	ocDir := os.Getenv("OPENCODE_CONFIG_DIR")
-	if ocDir == "" {
-		ocDir = filepath.Join(os.Getenv("HOME"), ".config", "opencode")
-	}
+func checkManifest(ocDir string) CheckResult {
 	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
 
 	if _, err := os.Stat(manifest); err == nil {

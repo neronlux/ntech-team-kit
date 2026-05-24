@@ -8,12 +8,10 @@ import (
 
 func TestRunDoctor_ValidKitRoot(t *testing.T) {
 	root := t.TempDir()
-	os.MkdirAll(filepath.Join(root, "skills"), 0o755)
-	os.WriteFile(filepath.Join(root, "VERSION"), []byte("1.0"), 0o644)
-	os.WriteFile(filepath.Join(root, "skills", "check-compiler-errors", "SKILL.md"), []byte("# test"), 0o644)
 	if err := os.MkdirAll(filepath.Join(root, "skills", "check-compiler-errors"), 0o755); err != nil {
 		t.Fatal(err)
 	}
+	os.WriteFile(filepath.Join(root, "VERSION"), []byte("1.0"), 0o644)
 	os.WriteFile(filepath.Join(root, "skills", "check-compiler-errors", "SKILL.md"), []byte("# test"), 0o644)
 
 	results := RunDoctor(root)

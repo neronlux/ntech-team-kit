@@ -53,6 +53,14 @@ func detectRepoRoot() string {
 	return ""
 }
 
+func ConfigDir() string {
+	if dir := os.Getenv("OPENCODE_CONFIG_DIR"); dir != "" {
+		return dir
+	}
+	home, _ := os.UserHomeDir()
+	return filepath.Join(home, ".config", "opencode")
+}
+
 func searchUpForKit(start string) string {
 	dir := start
 	for {
