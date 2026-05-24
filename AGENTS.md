@@ -16,6 +16,24 @@ In switch statements over discriminated unions or enums, use a `never` check in 
 
 When adding a new skill to `skills/`, you must also create a matching `commands/<skill-name>.md` and add the name to the `commands` slice in `internal/kit/install.go`. Skills and commands must stay 1:1 so users can invoke every skill via `/command`. When in this repo, verify the lists match before completing any task that touches skills or install.go.
 
+## Interactive mode
+
+Running `ntech-team-kit` with no arguments opens a guided menu that loops until the user quits. The menu shows version, kit root status, and installed file count. Options include full/lite/agents/skills install, custom install with a numbered component picker, custom uninstall with confirmation, status, doctor, and update.
+
+When stdin is not a terminal (piped), the interactive mode runs the default action (full install) and exits without looping. This makes `echo | ntech-team-kit` safe for CI scripts.
+
+### Component selection
+
+The CLI supports installing and uninstalling individual components:
+
+- `--pack full|lite|agents|skills` — named packs
+- `--only <components>` — cherry-pick components
+- `--without <components>` — exclude components from a pack
+- `--select` — interactive numbered component picker
+- `uninstall --only <components>` — partial uninstall preserving other components
+
+The manifest tracks component ownership (`component\tpath` format). Partial installs merge with existing entries; partial uninstalls update the manifest instead of deleting it. Empty `ComponentSet` means "all" for backward compatibility.
+
 ## Release process
 
 `.github/workflows/ci.yml` automates releases from pushes to `main`.

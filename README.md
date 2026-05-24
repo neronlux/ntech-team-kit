@@ -35,8 +35,10 @@ Some skills require project-specific tools (e.g. `run-smoke-tests` needs Playwri
 ```bash
 brew tap neronlux/tap
 brew install ntech-team-kit
-ntech-team-kit install
+ntech-team-kit
 ```
+
+Running `ntech-team-kit` with no arguments opens an interactive setup menu. Press Enter to install the full pack.
 
 ### From source
 
@@ -45,31 +47,117 @@ git clone https://github.com/neronlux/ntech-team-kit.git
 cd ntech-team-kit
 
 # Use the launcher (no build step)
-./bin/ntech-team-kit install
+./bin/ntech-team-kit
 
 # Or build and install the binary
 go build -o /usr/local/bin/ntech-team-kit ./cmd/ntech-team-kit
-ntech-team-kit install
+ntech-team-kit
 ```
 
 ## CLI reference
 
 ```
-ntech-team-kit install [--link]    Install skills, agents, commands, rules, and plugin
-ntech-team-kit update              Check for newer CLI + refresh all content
-ntech-team-kit doctor              Health checks + daily update hint
-ntech-team-kit status              Show installed files and manifest status
-ntech-team-kit version             Print the CLI version
-ntech-team-kit path                Print the resolved kit root directory
-ntech-team-kit uninstall           Remove all installed files
+ntech-team-kit                         Interactive setup (recommended)
+ntech-team-kit install [options]       Install selected kit components
+ntech-team-kit uninstall [options]     Remove installed files, optionally by component
+ntech-team-kit update                  Check for newer CLI + refresh all content
+ntech-team-kit doctor                  Health checks + daily update hint
+ntech-team-kit status                  Show installed files and manifest status
+ntech-team-kit version                 Print the CLI version
+ntech-team-kit path                    Print the resolved kit root directory
 ```
 
-**Options:**
+### Interactive mode
+
+Running `ntech-team-kit` with no arguments opens a guided menu:
+
+```
+  ntech-team-kit 0.1.29
+  ─────────────────────────────
+  Kit root: /opt/homebrew/Cellar/ntech-team-kit/0.1.29
+  Installed: 44 files
+  ─────────────────────────────
+
+  What would you like to do?
+
+    1) Install full pack (recommended)
+    2) Install lite pack
+    3) Install agents only
+    4) Install skills only
+    5) Custom install  (pick components)
+    6) Custom uninstall (pick components)
+    7) Check status
+    8) Run doctor
+    9) Update (refresh all content)
+    0) Quit
+```
+
+The menu loops so you can run more than one action per session. After each action it asks whether to continue or exit.
+
+**Custom install/uninstall** shows a numbered component picker:
+
+```
+  Select components to install.
+
+    [*] 1) skills     On-demand workflows (review, CI, shipping)
+    [*] 2) agents     Specialized subagents (ci-watcher, code-quality)
+    [*] 3) commands   /command shortcuts for every skill
+    [*] 4) rules      Auto-loaded coding standards
+    [*] 5) plugin     Background CI watcher plugin
+    [*] 6) config     opencode.jsonc defaults (first-time only)
+
+  Examples: "1 3 5" or "skills,commands" or "lite" or Enter to confirm
+  Components:
+```
+
+Type numbers (`1 3 5`), comma-separated names (`skills,commands`), or a pack name (`full`, `lite`). Press Enter to confirm. Uninstall asks for confirmation before removing files.
+
+When you pipe stdin (not a terminal), the interactive mode runs the default action (full install) and exits, so it works in CI scripts:
+
+```bash
+echo | ntech-team-kit    # equivalent to: ntech-team-kit install
+```
+
+### Non-interactive options
+
+**Global flags** go before the command: `ntech-team-kit --root ./kit install --pack lite`
 
 - `--root <path>` — override kit root location
-- `--link` — symlink instead of copy (useful for development)
 - `NTECH_TEAM_KIT_ROOT` — environment variable form of `--root`
 - `OPENCODE_CONFIG_DIR` — override `~/.config/opencode` location
+
+**Install options:**
+
+- `--pack full|lite|agents|skills` — install a named component pack (default: full)
+- `--select` — choose components interactively
+- `--only <components>` — install only specific components (comma-separated)
+- `--without <components>` — exclude components from the selected pack
+- `--link` — symlink instead of copy (useful for development)
+
+**Uninstall options:**
+
+- `--select` — choose components interactively
+- `--only <components>` — uninstall only specific components (comma-separated)
+
+**Install packs:**
+
+| Pack | Components |
+|------|------------|
+| `full` | `skills`, `agents`, `commands`, `rules`, `plugin`, `config` |
+| `lite` | `skills`, `commands`, `rules`, `config` |
+| `agents` | `agents` only |
+| `skills` | `skills` only |
+
+Component names: `skills`, `agents`, `commands`, `rules`, `plugin`, `config`.
+
+```bash
+ntech-team-kit install --pack lite
+ntech-team-kit install --select
+ntech-team-kit install --only skills,commands
+ntech-team-kit install --without plugin,agents
+ntech-team-kit uninstall --select
+ntech-team-kit uninstall --only agents
+```
 
 ### Keeping up to date
 
@@ -238,6 +326,9 @@ For first-time installs, `ntech-team-kit install` copies this config into `~/.co
 The CLI is a self-contained Go program (`cmd/ntech-team-kit` + `internal/kit/`):
 
 - **Pure Go** — all commands run natively with no shell script delegation
+- **Interactive mode** — guided menu with numbered component picker, confirmation prompts, and piped-stdin detection
+- **Component packs** — install full, lite, agents-only, skills-only, or cherry-pick individual components
+- **Partial install/uninstall** — manifest tracks component ownership so you can add or remove components without touching others
 - **Kit root resolution** — `NTECH_TEAM_KIT_ROOT` env var, compiled ldflags (Homebrew), or auto-detection from binary location
 - **Atomic file writes** — copies content via temp + rename to handle symlink edge cases
 - **Atomic manifest** — collects the installed file list in memory and writes it atomically at the end of each install
@@ -247,12 +338,13 @@ The CLI is a self-contained Go program (`cmd/ntech-team-kit` + `internal/kit/`):
 
 | Area | Cursor Team Kit | ntech-team-kit (OpenCode) |
 |------|-----------------|---------------------------|
-| Installation | `/add-plugin` | `brew install ntech-team-kit` or `git clone` + `ntech-team-kit install` |
+| Installation | `/add-plugin` | `brew install ntech-team-kit` or `git clone` + `ntech-team-kit` |
 | Plugin system | Cursor plugin manifest | OpenCode skills + agents + TypeScript plugin |
 | Background agents | `is_background: true` | TypeScript plugin using OpenCode session events |
 | Rules | `.mdc` files with `alwaysApply` | Loaded via `instructions` glob |
 | Commands | Not available | First-class `/command` support |
-| CLI | Shell script installer | Pure Go binary with atomic installs |
+| CLI | Shell script installer | Pure Go binary with interactive setup and component packs |
+| Partial install | Not available | Install or uninstall individual components by name |
 
 ## Development
 
@@ -268,7 +360,7 @@ bun install                     # Install dev dependencies
 bun run typecheck               # TypeScript type checking
 bun run build:plugin            # Build the CI watcher plugin
 go build ./cmd/ntech-team-kit   # Build the CLI
-go test ./...                   # Run Go tests (24 tests)
+go test ./...                   # Run Go tests (28 tests)
 bun run test                    # Full suite: typecheck + build + Go tests
 bun run vale                    # Lint documentation prose
 ```

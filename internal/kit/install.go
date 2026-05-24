@@ -71,12 +71,73 @@ var skillExtras = map[string][]string{
 	"pr-review-canvas": {"renderer.js", "styles.css", "template.html"},
 }
 
+const (
+	ComponentSkills   = "skills"
+	ComponentAgents   = "agents"
+	ComponentCommands = "commands"
+	ComponentRules    = "rules"
+	ComponentPlugin   = "plugin"
+	ComponentConfig   = "config"
+)
+
+type ComponentSet map[string]bool
+
+func FullComponentSet() ComponentSet {
+	return ComponentSet{
+		ComponentSkills:   true,
+		ComponentAgents:   true,
+		ComponentCommands: true,
+		ComponentRules:    true,
+		ComponentPlugin:   true,
+		ComponentConfig:   true,
+	}
+}
+
+func LiteComponentSet() ComponentSet {
+	return ComponentSet{
+		ComponentSkills:   true,
+		ComponentCommands: true,
+		ComponentRules:    true,
+		ComponentConfig:   true,
+	}
+}
+
+func ValidComponent(name string) bool {
+	switch name {
+	case ComponentSkills, ComponentAgents, ComponentCommands, ComponentRules, ComponentPlugin, ComponentConfig:
+		return true
+	default:
+		return false
+	}
+}
+
+func (c ComponentSet) Includes(name string) bool {
+	return len(c) == 0 || c[name]
+}
+
+func (c ComponentSet) Names() []string {
+	ordered := []string{ComponentSkills, ComponentAgents, ComponentCommands, ComponentRules, ComponentPlugin, ComponentConfig}
+	var names []string
+	for _, name := range ordered {
+		if c.Includes(name) {
+			names = append(names, name)
+		}
+	}
+	return names
+}
+
+type manifestEntry struct {
+	Component string
+	Path      string
+}
+
 type InstallOptions struct {
-	KitRoot   string
-	ConfigDir string // usually ~/.config/opencode
-	Mode      string // "copy" or "link"
-	DryRun    bool
-	Verbose   bool
+	KitRoot    string
+	ConfigDir  string // usually ~/.config/opencode
+	Mode       string // "copy" or "link"
+	Components ComponentSet
+	DryRun     bool
+	Verbose    bool
 }
 
 // PerformInstall is the robust, pure-Go implementation of installation.
@@ -91,9 +152,13 @@ func PerformInstall(opts InstallOptions) error {
 	if opts.Mode == "" {
 		opts.Mode = "copy"
 	}
+	if len(opts.Components) == 0 {
+		opts.Components = FullComponentSet()
+	}
 
 	manifestPath := filepath.Join(opts.ConfigDir, ".ntech-team-kit-manifest")
-	var manifestLines []string
+	var manifestEntries []manifestEntry
+	existingManifest, _ := readManifest(manifestPath, opts.ConfigDir)
 
 	// Create top-level directories (pure Go, no shell brace expansion issues)
 	dirs := []string{"skills", "agents", "commands", "rules", "plugins"}
@@ -104,7 +169,7 @@ func PerformInstall(opts InstallOptions) error {
 	}
 
 	// Helper to install a single file
-	installFile := func(src, dest string) error {
+	installFile := func(component, src, dest string) error {
 		if opts.DryRun {
 			if opts.Verbose {
 				fmt.Printf("[dry-run] %s %s -> %s\n", opts.Mode, src, dest)
@@ -135,64 +200,78 @@ func PerformInstall(opts InstallOptions) error {
 			}
 		}
 
-		manifestLines = append(manifestLines, dest)
+		manifestEntries = append(manifestEntries, manifestEntry{Component: component, Path: dest})
 		return nil
 	}
 
 	// Install skills (with any extra assets)
-	for _, skill := range skills {
-		destDir := filepath.Join(opts.ConfigDir, "skills", skill)
-		if err := installFile(
-			filepath.Join(opts.KitRoot, "skills", skill, "SKILL.md"),
-			filepath.Join(destDir, "SKILL.md"),
-		); err != nil {
-			return err
-		}
-
-		for _, asset := range skillExtras[skill] {
+	if opts.Components.Includes(ComponentSkills) {
+		for _, skill := range skills {
+			destDir := filepath.Join(opts.ConfigDir, "skills", skill)
 			if err := installFile(
-				filepath.Join(opts.KitRoot, "skills", skill, asset),
-				filepath.Join(destDir, asset),
+				ComponentSkills,
+				filepath.Join(opts.KitRoot, "skills", skill, "SKILL.md"),
+				filepath.Join(destDir, "SKILL.md"),
+			); err != nil {
+				return err
+			}
+
+			for _, asset := range skillExtras[skill] {
+				if err := installFile(
+					ComponentSkills,
+					filepath.Join(opts.KitRoot, "skills", skill, asset),
+					filepath.Join(destDir, asset),
+				); err != nil {
+					return err
+				}
+			}
+		}
+	}
+
+	// Install agents
+	if opts.Components.Includes(ComponentAgents) {
+		for _, agent := range agents {
+			if err := installFile(
+				ComponentAgents,
+				filepath.Join(opts.KitRoot, "agents", agent+".md"),
+				filepath.Join(opts.ConfigDir, "agents", agent+".md"),
 			); err != nil {
 				return err
 			}
 		}
 	}
 
-	// Install agents
-	for _, agent := range agents {
-		if err := installFile(
-			filepath.Join(opts.KitRoot, "agents", agent+".md"),
-			filepath.Join(opts.ConfigDir, "agents", agent+".md"),
-		); err != nil {
-			return err
-		}
-	}
-
 	// Install commands
-	for _, cmd := range commands {
-		if err := installFile(
-			filepath.Join(opts.KitRoot, "commands", cmd+".md"),
-			filepath.Join(opts.ConfigDir, "commands", cmd+".md"),
-		); err != nil {
-			return err
+	if opts.Components.Includes(ComponentCommands) {
+		for _, cmd := range commands {
+			if err := installFile(
+				ComponentCommands,
+				filepath.Join(opts.KitRoot, "commands", cmd+".md"),
+				filepath.Join(opts.ConfigDir, "commands", cmd+".md"),
+			); err != nil {
+				return err
+			}
 		}
 	}
 
 	// Install rules
-	for _, rule := range rules {
-		if err := installFile(
-			filepath.Join(opts.KitRoot, "rules", rule+".md"),
-			filepath.Join(opts.ConfigDir, "rules", rule+".md"),
-		); err != nil {
-			return err
+	if opts.Components.Includes(ComponentRules) {
+		for _, rule := range rules {
+			if err := installFile(
+				ComponentRules,
+				filepath.Join(opts.KitRoot, "rules", rule+".md"),
+				filepath.Join(opts.ConfigDir, "rules", rule+".md"),
+			); err != nil {
+				return err
+			}
 		}
 	}
 
 	// Seed default config for first-time users so installed rules and the plugin
 	// are actually loaded. Do not overwrite an existing OpenCode config.
-	if !hasOpenCodeConfig(opts.ConfigDir) {
+	if opts.Components.Includes(ComponentConfig) && !hasOpenCodeConfig(opts.ConfigDir) {
 		if err := installFile(
+			ComponentConfig,
 			filepath.Join(opts.KitRoot, "opencode.jsonc"),
 			filepath.Join(opts.ConfigDir, "opencode.jsonc"),
 		); err != nil {
@@ -200,25 +279,28 @@ func PerformInstall(opts InstallOptions) error {
 		}
 	}
 
-	// Plugin (ci-watcher)
-	pluginSrc := filepath.Join(opts.KitRoot, "plugins", "ci-watcher.ts")
-	pluginDest := filepath.Join(opts.ConfigDir, "plugins", "ci-watcher.ts")
+	if opts.Components.Includes(ComponentPlugin) {
+		// Plugin (ci-watcher)
+		pluginSrc := filepath.Join(opts.KitRoot, "plugins", "ci-watcher.ts")
+		pluginDest := filepath.Join(opts.ConfigDir, "plugins", "ci-watcher.ts")
 
-	// Remove old package.json to avoid conflicts (same as shell)
-	_ = os.Remove(filepath.Join(opts.ConfigDir, "plugins", "package.json"))
+		// Remove old package.json to avoid conflicts (same as shell)
+		_ = os.Remove(filepath.Join(opts.ConfigDir, "plugins", "package.json"))
 
-	if err := installFile(pluginSrc, pluginDest); err != nil {
-		return err
-	}
+		if err := installFile(ComponentPlugin, pluginSrc, pluginDest); err != nil {
+			return err
+		}
 
-	// Ensure @opencode-ai/plugin dependency
-	if err := ensurePluginDependency(opts.ConfigDir, opts.DryRun); err != nil {
-		return err
+		// Ensure @opencode-ai/plugin dependency
+		if err := ensurePluginDependency(opts.ConfigDir, opts.DryRun); err != nil {
+			return err
+		}
 	}
 
 	// Write manifest atomically (collect, then write temp + rename)
-	if !opts.DryRun && len(manifestLines) > 0 {
-		if err := writeManifest(manifestPath, manifestLines); err != nil {
+	if !opts.DryRun && len(manifestEntries) > 0 {
+		merged := mergeManifestEntries(existingManifest, manifestEntries, opts.Components)
+		if err := writeManifest(manifestPath, merged); err != nil {
 			return fmt.Errorf("failed to write manifest: %w", err)
 		}
 	}
@@ -226,11 +308,22 @@ func PerformInstall(opts InstallOptions) error {
 	if !opts.DryRun {
 		printBanner()
 		fmt.Printf("  install complete (%s mode)\n", opts.Mode)
-		fmt.Printf("  skills:   %d\n", len(skills))
-		fmt.Printf("  agents:   %d\n", len(agents))
-		fmt.Printf("  commands: %d\n", len(commands))
-		fmt.Printf("  rules:    %d\n", len(rules))
-		fmt.Printf("  plugins:  1 (ci-watcher)\n")
+		fmt.Printf("  components: %s\n", strings.Join(opts.Components.Names(), ", "))
+		if opts.Components.Includes(ComponentSkills) {
+			fmt.Printf("  skills:     %d\n", len(skills))
+		}
+		if opts.Components.Includes(ComponentAgents) {
+			fmt.Printf("  agents:     %d\n", len(agents))
+		}
+		if opts.Components.Includes(ComponentCommands) {
+			fmt.Printf("  commands:   %d\n", len(commands))
+		}
+		if opts.Components.Includes(ComponentRules) {
+			fmt.Printf("  rules:      %d\n", len(rules))
+		}
+		if opts.Components.Includes(ComponentPlugin) {
+			fmt.Printf("  plugins:    1 (ci-watcher)\n")
+		}
 		fmt.Println("\n  To enable background CI watching, set:")
 		fmt.Println("    export OPENCODE_NTECH_CI_WATCH=1")
 	}
@@ -245,6 +338,17 @@ func hasOpenCodeConfig(ocDir string) bool {
 		}
 	}
 	return false
+}
+
+func mergeManifestEntries(existing, installed []manifestEntry, replaced ComponentSet) []manifestEntry {
+	merged := make([]manifestEntry, 0, len(existing)+len(installed))
+	for _, entry := range existing {
+		if !replaced.Includes(entry.Component) {
+			merged = append(merged, entry)
+		}
+	}
+	merged = append(merged, installed...)
+	return merged
 }
 
 func copyFile(src, dst string) error {
@@ -307,7 +411,7 @@ func copyFile(src, dst string) error {
 	return nil
 }
 
-// ensurePluginDependency replicates the logic from install.sh
+// ensurePluginDependency keeps the OpenCode plugin dependency available.
 func ensurePluginDependency(ocDir string, dryRun bool) error {
 	pkgPath := filepath.Join(ocDir, "package.json")
 
@@ -351,7 +455,11 @@ func ensurePluginDependency(ocDir string, dryRun bool) error {
 }
 
 // writeManifest writes the manifest atomically using temp + rename.
-func writeManifest(path string, lines []string) error {
+func writeManifest(path string, entries []manifestEntry) error {
+	lines := make([]string, 0, len(entries))
+	for _, entry := range entries {
+		lines = append(lines, entry.Component+"\t"+entry.Path)
+	}
 	data := strings.Join(lines, "\n") + "\n"
 
 	tmp, err := os.CreateTemp(filepath.Dir(path), ".ntech-team-kit-manifest.tmp-*")
@@ -394,30 +502,18 @@ func logPrefix(format string, a ...any) {
 func PrintStatus(ocDir string) error {
 	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
 
-	data, err := os.ReadFile(manifest)
+	entries, err := readManifest(manifest, ocDir)
 	if err != nil {
 		logPrefix("not installed (no manifest at %s)", manifest)
 		return nil
 	}
 
-	lines := strings.Split(string(data), "\n")
-	count := 0
-	for _, line := range lines {
-		if strings.TrimSpace(line) != "" {
-			count++
-		}
-	}
-
-	logPrefix("%d files tracked in manifest", count)
+	logPrefix("%d files tracked in manifest", len(entries))
 
 	broken := 0
-	for _, line := range lines {
-		path := strings.TrimSpace(line)
-		if path == "" {
-			continue
-		}
-		if _, err := os.Stat(path); err != nil {
-			logPrefix("  MISSING: %s", path)
+	for _, entry := range entries {
+		if _, err := os.Stat(entry.Path); err != nil {
+			logPrefix("  MISSING: %s", entry.Path)
 			broken++
 		}
 	}
@@ -430,45 +526,109 @@ func PrintStatus(ocDir string) error {
 	return nil
 }
 
-// PerformUninstall removes all files listed in the manifest and cleans up
-// empty per-skill directories, matching the original shell behavior.
+// PerformUninstall removes all files listed in the manifest and cleans up empty directories.
 func PerformUninstall(ocDir string) error {
+	return PerformUninstallSelected(ocDir, nil)
+}
+
+func PerformUninstallSelected(ocDir string, components ComponentSet) error {
 	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
 
-	data, err := os.ReadFile(manifest)
+	entries, err := readManifest(manifest, ocDir)
 	if err != nil {
 		logPrefix("no manifest found at %s — nothing to uninstall", manifest)
 		return nil
 	}
 
-	lines := strings.Split(string(data), "\n")
 	removed := 0
-	for _, line := range lines {
-		path := strings.TrimSpace(line)
-		if path == "" {
+	var remaining []manifestEntry
+	for _, entry := range entries {
+		if !components.Includes(entry.Component) {
+			remaining = append(remaining, entry)
 			continue
 		}
-		if _, err := os.Stat(path); err == nil {
-			if err := os.Remove(path); err == nil {
+		if _, err := os.Stat(entry.Path); err == nil {
+			if err := os.Remove(entry.Path); err == nil {
 				removed++
 			}
 		}
 	}
 
-	// Remove empty skill subdirectories (same as original do_uninstall)
-	skillBase := filepath.Join(ocDir, "skills")
-	for _, skill := range skills {
-		dir := filepath.Join(skillBase, skill)
-		if info, err := os.Stat(dir); err == nil && info.IsDir() {
-			entries, _ := os.ReadDir(dir)
-			if len(entries) == 0 {
-				_ = os.Remove(dir)
-			}
-		}
-	}
+	cleanupEmptyDirs(ocDir)
 
-	_ = os.Remove(manifest)
+	if len(remaining) == 0 {
+		_ = os.Remove(manifest)
+	} else if err := writeManifest(manifest, remaining); err != nil {
+		return fmt.Errorf("failed to update manifest: %w", err)
+	}
 
 	logPrefix("uninstalled %d files", removed)
 	return nil
+}
+
+func readManifest(path, ocDir string) ([]manifestEntry, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, err
+	}
+	var entries []manifestEntry
+	for _, line := range strings.Split(string(data), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
+		}
+		entry := parseManifestLine(line, ocDir)
+		entries = append(entries, entry)
+	}
+	return entries, nil
+}
+
+func parseManifestLine(line, ocDir string) manifestEntry {
+	parts := strings.SplitN(line, "\t", 2)
+	if len(parts) == 2 && ValidComponent(parts[0]) {
+		return manifestEntry{Component: parts[0], Path: parts[1]}
+	}
+	return manifestEntry{Component: inferComponent(line, ocDir), Path: line}
+}
+
+func inferComponent(path, ocDir string) string {
+	rel, err := filepath.Rel(ocDir, path)
+	if err != nil || strings.HasPrefix(rel, "..") {
+		rel = path
+	}
+	first := strings.Split(filepath.ToSlash(rel), "/")[0]
+	switch first {
+	case "skills":
+		return ComponentSkills
+	case "agents":
+		return ComponentAgents
+	case "commands":
+		return ComponentCommands
+	case "rules":
+		return ComponentRules
+	case "plugins":
+		return ComponentPlugin
+	case "opencode.json", "opencode.jsonc":
+		return ComponentConfig
+	default:
+		return ""
+	}
+}
+
+func cleanupEmptyDirs(ocDir string) {
+	for _, skill := range skills {
+		removeIfEmpty(filepath.Join(ocDir, "skills", skill))
+	}
+	for _, dir := range []string{"skills", "agents", "commands", "rules", "plugins"} {
+		removeIfEmpty(filepath.Join(ocDir, dir))
+	}
+}
+
+func removeIfEmpty(dir string) {
+	if info, err := os.Stat(dir); err == nil && info.IsDir() {
+		entries, _ := os.ReadDir(dir)
+		if len(entries) == 0 {
+			_ = os.Remove(dir)
+		}
+	}
 }

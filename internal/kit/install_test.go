@@ -153,6 +153,124 @@ func TestPerformInstall_DoesNotOverwriteExistingConfig(t *testing.T) {
 	}
 }
 
+func TestPerformInstall_LitePack(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:    root,
+		ConfigDir:  configDir,
+		Mode:       "copy",
+		Components: LiteComponentSet(),
+	}); err != nil {
+		t.Fatalf("PerformInstall lite failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(configDir, "skills", skills[0], "SKILL.md")); err != nil {
+		t.Fatalf("lite pack should install skills: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "commands", commands[0]+".md")); err != nil {
+		t.Fatalf("lite pack should install commands: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "rules", rules[0]+".md")); err != nil {
+		t.Fatalf("lite pack should install rules: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "opencode.jsonc")); err != nil {
+		t.Fatalf("lite pack should install first-time config: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "agents", agents[0]+".md")); !os.IsNotExist(err) {
+		t.Fatalf("lite pack should not install agents")
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "plugins", "ci-watcher.ts")); !os.IsNotExist(err) {
+		t.Fatalf("lite pack should not install plugin")
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "package.json")); !os.IsNotExist(err) {
+		t.Fatalf("lite pack should not create plugin package.json")
+	}
+}
+
+func TestPerformInstall_OnlyAgents(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:    root,
+		ConfigDir:  configDir,
+		Mode:       "copy",
+		Components: ComponentSet{ComponentAgents: true},
+	}); err != nil {
+		t.Fatalf("PerformInstall agents failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(configDir, "agents", agents[0]+".md")); err != nil {
+		t.Fatalf("agents pack should install agents: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "skills", skills[0], "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("agents pack should not install skills")
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "opencode.jsonc")); !os.IsNotExist(err) {
+		t.Fatalf("agents pack should not install config")
+	}
+}
+
+func TestPerformInstall_PartialInstallPreservesManifestEntries(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:   root,
+		ConfigDir: configDir,
+		Mode:      "copy",
+	}); err != nil {
+		t.Fatalf("full install failed: %v", err)
+	}
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:    root,
+		ConfigDir:  configDir,
+		Mode:       "copy",
+		Components: ComponentSet{ComponentAgents: true},
+	}); err != nil {
+		t.Fatalf("partial install failed: %v", err)
+	}
+
+	entries, err := readManifest(filepath.Join(configDir, ".ntech-team-kit-manifest"), configDir)
+	if err != nil {
+		t.Fatal(err)
+	}
+	expectedCount := len(skills) + len(skillExtras["pr-review-canvas"]) + len(agents) + len(commands) + len(rules) + 2
+	if len(entries) != expectedCount {
+		t.Fatalf("manifest has %d entries after partial install, expected %d", len(entries), expectedCount)
+	}
+}
+
+func TestPerformUninstallSelected(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:   root,
+		ConfigDir: configDir,
+		Mode:      "copy",
+	}); err != nil {
+		t.Fatalf("install failed: %v", err)
+	}
+
+	if err := PerformUninstallSelected(configDir, ComponentSet{ComponentSkills: true}); err != nil {
+		t.Fatalf("partial uninstall failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(configDir, "skills", skills[0], "SKILL.md")); !os.IsNotExist(err) {
+		t.Fatalf("partial uninstall should remove skills")
+	}
+	if _, err := os.Stat(filepath.Join(configDir, "agents", agents[0]+".md")); err != nil {
+		t.Fatalf("partial uninstall should keep agents: %v", err)
+	}
+	if _, err := os.Stat(filepath.Join(configDir, ".ntech-team-kit-manifest")); err != nil {
+		t.Fatalf("partial uninstall should keep manifest: %v", err)
+	}
+}
+
 func TestPerformInstall_Link(t *testing.T) {
 	root := createFakeKitRoot(t)
 	configDir := t.TempDir()
