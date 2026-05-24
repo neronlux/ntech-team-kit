@@ -182,12 +182,16 @@ jobs:
             exit 0
           fi
 
+          echo "Preparing formula content with ${TAG}..."
+          FORMULA=$(sed -e "s|url \".*\"|url \"${TARBALL_URL}\"|g" \
+                        -e "s|sha256 \".*\"|sha256 \"${SHA256}\"|g" \
+                        Formula/ntech-team-kit.rb | base64 -w0)
+
           echo "Dispatching update-formula event to neronlux/homebrew-tap..."
           gh api repos/neronlux/homebrew-tap/dispatches \
             -f event_type=update-formula \
             -f "client_payload[tag]=${TAG}" \
-            -f "client_payload[sha256]=${SHA256}" \
-            -f "client_payload[tarball_url]=${TARBALL_URL}"
+            -f "client_payload[formula]=${FORMULA}"
           echo "Dispatch sent! The tap repo will update its formula and run tests."
 
       - name: Update reference formula in this repo
