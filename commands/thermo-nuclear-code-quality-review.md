@@ -1,5 +1,5 @@
 ---
-description: Run an extremely strict maintainability and code quality audit
+description: Run a strict maintainability and code quality audit
 agent: build
 ---
 

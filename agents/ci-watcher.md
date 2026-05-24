@@ -1,5 +1,5 @@
 ---
-description: Watch PR CI for the current branch and report pass/fail with relevant failure links. Use when waiting for CI results or CI has failed. Use proactively to monitor branch CI.
+description: Watch PR CI for the current branch and report pass/fail with relevant failure links. Use when waiting for CI results or CI has failed. Use proactively to watch branch CI.
 mode: subagent
 permission:
   edit: deny

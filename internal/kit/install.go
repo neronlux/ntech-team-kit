@@ -63,8 +63,8 @@ var (
 		"typescript-exhaustive-switch",
 	}
 
-	pluginDep         = "@opencode-ai/plugin"
-	pluginDepVersion  = "^1.14.0"
+	pluginDep        = "@opencode-ai/plugin"
+	pluginDepVersion = "^1.14.0"
 )
 
 var skillExtras = map[string][]string{
@@ -72,11 +72,11 @@ var skillExtras = map[string][]string{
 }
 
 type InstallOptions struct {
-	KitRoot     string
-	ConfigDir   string // usually ~/.config/opencode
-	Mode        string // "copy" or "link"
-	DryRun      bool
-	Verbose     bool
+	KitRoot   string
+	ConfigDir string // usually ~/.config/opencode
+	Mode      string // "copy" or "link"
+	DryRun    bool
+	Verbose   bool
 }
 
 // PerformInstall is the robust, pure-Go implementation of installation.
@@ -189,6 +189,17 @@ func PerformInstall(opts InstallOptions) error {
 		}
 	}
 
+	// Seed default config for first-time users so installed rules and the plugin
+	// are actually loaded. Do not overwrite an existing OpenCode config.
+	if !hasOpenCodeConfig(opts.ConfigDir) {
+		if err := installFile(
+			filepath.Join(opts.KitRoot, "opencode.jsonc"),
+			filepath.Join(opts.ConfigDir, "opencode.jsonc"),
+		); err != nil {
+			return err
+		}
+	}
+
 	// Plugin (ci-watcher)
 	pluginSrc := filepath.Join(opts.KitRoot, "plugins", "ci-watcher.ts")
 	pluginDest := filepath.Join(opts.ConfigDir, "plugins", "ci-watcher.ts")
@@ -225,6 +236,15 @@ func PerformInstall(opts InstallOptions) error {
 	}
 
 	return nil
+}
+
+func hasOpenCodeConfig(ocDir string) bool {
+	for _, name := range []string{"opencode.json", "opencode.jsonc"} {
+		if _, err := os.Stat(filepath.Join(ocDir, name)); err == nil {
+			return true
+		}
+	}
+	return false
 }
 
 func copyFile(src, dst string) error {

@@ -21,6 +21,9 @@ func createFakeKitRoot(t *testing.T) string {
 	if err := os.WriteFile(filepath.Join(root, "VERSION"), []byte("0.0.0-test\n"), 0o644); err != nil {
 		t.Fatal(err)
 	}
+	if err := os.WriteFile(filepath.Join(root, "opencode.jsonc"), []byte("{\n  \"instructions\": [\"rules/*.md\"],\n  \"plugin\": [\"plugins/ci-watcher.ts\"]\n}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 
 	for _, skill := range skills {
 		dir := filepath.Join(root, "skills", skill)
@@ -109,15 +112,44 @@ func TestPerformInstall_Copy(t *testing.T) {
 		}
 	}
 
+	if _, err := os.Stat(filepath.Join(configDir, "opencode.jsonc")); err != nil {
+		t.Errorf("opencode.jsonc not installed for first-time config: %v", err)
+	}
+
 	manifest := filepath.Join(configDir, ".ntech-team-kit-manifest")
 	data, err := os.ReadFile(manifest)
 	if err != nil {
 		t.Fatalf("manifest not found: %v", err)
 	}
 	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
-	expectedCount := len(skills) + len(skillExtras["pr-review-canvas"]) + len(agents) + len(commands) + len(rules) + 1
+	expectedCount := len(skills) + len(skillExtras["pr-review-canvas"]) + len(agents) + len(commands) + len(rules) + 2
 	if len(lines) != expectedCount {
 		t.Errorf("manifest has %d lines, expected %d", len(lines), expectedCount)
+	}
+}
+
+func TestPerformInstall_DoesNotOverwriteExistingConfig(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+	existing := filepath.Join(configDir, "opencode.jsonc")
+	if err := os.WriteFile(existing, []byte("{\"instructions\": [\"custom.md\"]}\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:   root,
+		ConfigDir: configDir,
+		Mode:      "copy",
+	}); err != nil {
+		t.Fatalf("PerformInstall failed: %v", err)
+	}
+
+	data, err := os.ReadFile(existing)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(data) != "{\"instructions\": [\"custom.md\"]}\n" {
+		t.Fatalf("existing opencode.jsonc was overwritten: %s", string(data))
 	}
 }
 
@@ -149,10 +181,10 @@ func TestPerformInstall_DryRun(t *testing.T) {
 	configDir := t.TempDir()
 
 	err := PerformInstall(InstallOptions{
-		KitRoot:  root,
+		KitRoot:   root,
 		ConfigDir: configDir,
-		Mode:     "copy",
-		DryRun:   true,
+		Mode:      "copy",
+		DryRun:    true,
 	})
 	if err != nil {
 		t.Fatalf("PerformInstall dry run failed: %v", err)

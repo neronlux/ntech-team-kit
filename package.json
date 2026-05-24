@@ -21,6 +21,6 @@
     "go:build": "go build -o dist/ntech-team-kit ./cmd/ntech-team-kit",
     "go:test": "go test ./...",
     "test": "bun run typecheck && bun build --target=bun --outdir=/tmp plugins/ci-watcher.ts && go test ./... && echo '✓ All tests passed'",
-    "vale": "vale README.md AGENTS.md"
+    "vale": "vale README.md AGENTS.md agents/*.md commands/*.md rules/*.md"
   }
 }

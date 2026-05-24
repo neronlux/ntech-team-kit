@@ -1,5 +1,5 @@
 ---
-description: Summarize authored commits over a time period into a concise update
+description: Summarize authored commits over a date range into a concise update
 agent: build
 ---
 

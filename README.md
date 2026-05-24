@@ -68,7 +68,7 @@ ntech-team-kit uninstall           Remove all installed files
 
 - `--root <path>` — override kit root location
 - `--link` — symlink instead of copy (useful for development)
-- `NTECH_TEAM_KIT_ROOT` — environment variable equivalent of `--root`
+- `NTECH_TEAM_KIT_ROOT` — environment variable form of `--root`
 - `OPENCODE_CONFIG_DIR` — override `~/.config/opencode` location
 
 ### Keeping up to date
@@ -114,7 +114,7 @@ Watches PR checks via `gh pr checks`, diagnoses failures, applies fixes, and ite
 @thermo-nuclear-code-quality-review review the current branch
 ```
 
-The "thermo-nuclear" maintainability audit: 1k-line rule, code-judo moves, spaghetti detection, and ambitious structural simplification. Tab-selectable via `@`.
+The "thermo-nuclear" maintainability audit: 1k-line rule, code-judo moves, spaghetti detection, and ambitious structural simplification. Invokable via `@`.
 
 ### Verify a claim with evidence
 
@@ -143,11 +143,11 @@ Skills load on demand when invoked via the `skill` tool or `/command`.
 | `control-ui` | UI bugs, visual verification, perf profiles | Build a local browser/CDP harness to drive and inspect web or Electron UIs |
 | `deslop` | AI-generated code cleanup | Remove AI slop from the diff: unnecessary comments, defensive checks, `any` casts, deep nesting |
 | `fix-ci` | Failing PR checks | Diagnose the first actionable failure, apply a minimal fix, push and re-check |
-| `fix-merge-conflicts` | Unresolved merge conflicts | Resolve conflicts non-interactively with minimal edits, rebuild lockfiles, validate build |
+| `fix-merge-conflicts` | Unresolved merge conflicts | Resolve conflicts non-interactively with minimal edits, rebuild lockfiles, check build |
 | `get-pr-comments` | PR feedback summary | Fetch review and discussion comments, group by severity and actionability |
-| `loop-on-ci` | Watch CI until green | Monitor PR checks, fix failures, iterate until all checks pass |
+| `loop-on-ci` | Watch CI until green | Watch PR checks, fix failures, iterate until all checks pass |
 | `make-pr-easy-to-review` | Prepare PR for review | Clean commit history, improve PR description, add reviewer guidance, annotate the diff |
-| `new-branch-and-pr` | Start new work | Create a branch, implement, test, commit, and open a PR |
+| `new-branch-and-pr` | Start new work | Create a branch, make changes, test, commit, and open a PR |
 | `pr-review-canvas` | Interactive PR walkthrough | Generate an HTML page with categorized files, moved-code detection, and inline diffs |
 | `review-and-ship` | Ship changes safely | Review for bugs and intent fit, run or write tests, commit, push, and open a PR |
 | `run-smoke-tests` | End-to-end verification | Run Playwright smoke tests, debug failures, verify fixes |
@@ -211,7 +211,7 @@ export OPENCODE_NTECH_CI_WATCH=1
 The plugin polls every 60 seconds (up to 30 times) and notifies you when:
 - A CI check fails (with the failing check names)
 - All checks pass
-- The polling budget is exhausted
+- The watcher reaches its polling limit
 
 This is optional — the same functionality is available interactively via `/loop-on-ci` and `/fix-ci`.
 
@@ -221,9 +221,9 @@ The repo ships an `opencode.jsonc` with sensible defaults:
 
 - Auto-loads the two rules via `instructions` glob
 - Requires confirmation before loading `thermo-nuclear-code-quality-review` (read-only, but heavy)
-- Restricts agent permissions to read-only (`gh` and `git` only)
+- Restricts agent permissions to read-only (`gh` and targeted `git` commands only)
 
-Merge relevant parts into your own `~/.config/opencode/opencode.json` as needed.
+For first-time installs, `ntech-team-kit install` copies this config into `~/.config/opencode/opencode.jsonc` so rules and the plugin load automatically. If you already have an OpenCode config, the installer leaves it untouched; merge the relevant `instructions`, `plugin`, and `permission` entries as needed.
 
 ## Architecture
 
@@ -231,8 +231,8 @@ The CLI is a self-contained Go program (`cmd/ntech-team-kit` + `internal/kit/`):
 
 - **Pure Go** — all commands run natively with no shell script delegation
 - **Kit root resolution** — `NTECH_TEAM_KIT_ROOT` env var, compiled ldflags (Homebrew), or auto-detection from binary location
-- **Atomic file writes** — content is copied via temp + rename to handle symlink edge cases
-- **Atomic manifest** — installed file list is collected in memory and written atomically at the end of each install
+- **Atomic file writes** — copies content via temp + rename to handle symlink edge cases
+- **Atomic manifest** — collects the installed file list in memory and writes it atomically at the end of each install
 - **Doctor checks** — validates OpenCode, `gh`, authentication, kit layout, and manifest integrity
 
 ## Differences from cursor-team-kit
@@ -242,7 +242,7 @@ The CLI is a self-contained Go program (`cmd/ntech-team-kit` + `internal/kit/`):
 | Installation | `/add-plugin` | `brew install ntech-team-kit` or `git clone` + `ntech-team-kit install` |
 | Plugin system | Cursor plugin manifest | OpenCode skills + agents + TypeScript plugin |
 | Background agents | `is_background: true` | TypeScript plugin using OpenCode session events |
-| Rules | `.mdc` files with `alwaysApply` | Loaded via `instructions` glob + `AGENTS.md` |
+| Rules | `.mdc` files with `alwaysApply` | Loaded via `instructions` glob |
 | Commands | Not available | First-class `/command` support |
 | CLI | Shell script installer | Pure Go binary with atomic installs |
 
@@ -260,7 +260,7 @@ bun install                     # Install dev dependencies
 bun run typecheck               # TypeScript type checking
 bun run build:plugin            # Build the CI watcher plugin
 go build ./cmd/ntech-team-kit   # Build the CLI
-go test ./...                   # Run Go tests (22 tests)
+go test ./...                   # Run Go tests (24 tests)
 bun run test                    # Full suite: typecheck + build + Go tests
 bun run vale                    # Lint documentation prose
 ```

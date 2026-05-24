@@ -24,12 +24,13 @@
       }
     },
     "thermo-nuclear-code-quality-review": {
-      "description": "Deep maintainability & code-quality auditor (1k-line rule, code-judo, spaghetti). Tab-selectable via @ or via Task.",
+      "description": "Deep maintainability & code-quality auditor (1k-line rule, code-judo, spaghetti). Invokable via @ or via Task.",
       "mode": "subagent",
       "permission": {
         "edit": "deny",
         "bash": {
           "*": "deny",
+          "git fetch*": "allow",
           "git diff*": "allow",
           "git log*": "allow"
         }
