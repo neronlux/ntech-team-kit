@@ -3,6 +3,7 @@ package kit
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -49,5 +50,76 @@ func TestCheckKitRoot_Valid(t *testing.T) {
 	r := checkKitRoot(dir)
 	if !r.Passed {
 		t.Error("existing dir should pass")
+	}
+}
+
+func TestCheckOpenCodeReportsDetectedPath(t *testing.T) {
+	r := checkOpenCodeWith(func(name string) (string, error) {
+		if name == "opencode" {
+			return "/usr/local/bin/opencode", nil
+		}
+		return "", os.ErrNotExist
+	})
+
+	if !r.Passed {
+		t.Fatalf("OpenCode check should pass: %s", r.Message)
+	}
+	if !strings.Contains(r.Message, "/usr/local/bin/opencode") {
+		t.Fatalf("OpenCode check should report path, got %q", r.Message)
+	}
+}
+
+func TestCheckCodexCLIDetectsPathBinary(t *testing.T) {
+	r := checkCodexCLIWith(func(name string) (string, error) {
+		if name == "codex" {
+			return "/usr/local/bin/codex", nil
+		}
+		return "", os.ErrNotExist
+	}, func(string) bool {
+		return false
+	}, func(string) string {
+		return ""
+	}, "/home/user", "linux")
+
+	if !r.Passed {
+		t.Fatalf("Codex CLI check should pass: %s", r.Message)
+	}
+	if !strings.Contains(r.Message, "/usr/local/bin/codex") {
+		t.Fatalf("Codex CLI check should report path, got %q", r.Message)
+	}
+}
+
+func TestCheckCodexGUIDetectsMacApp(t *testing.T) {
+	home := t.TempDir()
+	app := filepath.Join(home, "Applications", "Codex.app")
+	if err := os.MkdirAll(app, 0o755); err != nil {
+		t.Fatal(err)
+	}
+
+	r := checkCodexGUIWith(pathExists, globPaths, home, "darwin")
+	if !r.Passed {
+		t.Fatalf("Codex GUI check should detect mac app: %s", r.Message)
+	}
+	if !strings.Contains(r.Message, app) {
+		t.Fatalf("Codex GUI check should report app path, got %q", r.Message)
+	}
+}
+
+func TestCheckCodexGUIDetectsLinuxDesktopEntry(t *testing.T) {
+	home := t.TempDir()
+	desktopEntry := filepath.Join(home, ".local", "share", "applications", "codex.desktop")
+	if err := os.MkdirAll(filepath.Dir(desktopEntry), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(desktopEntry, []byte("[Desktop Entry]\nName=Codex\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	r := checkCodexGUIWith(pathExists, globPaths, home, "linux")
+	if !r.Passed {
+		t.Fatalf("Codex GUI check should detect linux desktop entry: %s", r.Message)
+	}
+	if !strings.Contains(r.Message, desktopEntry) {
+		t.Fatalf("Codex GUI check should report desktop entry, got %q", r.Message)
 	}
 }

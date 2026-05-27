@@ -1,7 +1,7 @@
 {
   "name": "ntech-team-kit",
   "private": true,
-  "description": "OpenCode-native skills, agents, commands, and plugins ported from cursor-team-kit.",
+  "description": "OpenCode and Codex skills, agents, commands, and plugins ported from cursor-team-kit.",
   "license": "MIT",
   "repository": {
     "type": "git",

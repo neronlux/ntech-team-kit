@@ -147,6 +147,7 @@ func PerformInstall(opts InstallOptions) error {
 	manifestPath := filepath.Join(opts.ConfigDir, ".ntech-team-kit-manifest")
 	var manifestEntries []manifestEntry
 	existingManifest, _ := readManifest(manifestPath, opts.ConfigDir)
+	existingManifest = filterOwnedManifestEntries(opts.ConfigDir, existingManifest)
 
 	// Create top-level directories (pure Go, no shell brace expansion issues)
 	dirs := []string{"skills", "agents", "commands", "rules", "plugins"}
@@ -271,9 +272,6 @@ func PerformInstall(opts InstallOptions) error {
 		// Plugin (ci-watcher)
 		pluginSrc := filepath.Join(opts.KitRoot, "plugins", "ci-watcher.ts")
 		pluginDest := filepath.Join(opts.ConfigDir, "plugins", "ci-watcher.ts")
-
-		// Remove old package.json to avoid conflicts (same as shell)
-		_ = os.Remove(filepath.Join(opts.ConfigDir, "plugins", "package.json"))
 
 		if err := installFile(ComponentPlugin, pluginSrc, pluginDest); err != nil {
 			return err
@@ -532,7 +530,12 @@ func PerformUninstallSelected(ocDir string, components ComponentSet) error {
 
 	removed := 0
 	var remaining []manifestEntry
+	ownedPaths := ownedManifestPaths(ocDir)
 	for _, entry := range entries {
+		if !isOwnedManifestEntry(ownedPaths, entry) {
+			log.Printf("[ntech-team-kit] skipping unsafe manifest entry: %s", entry.Path)
+			continue
+		}
 		if !components.Includes(entry.Component) {
 			remaining = append(remaining, entry)
 			continue
@@ -554,6 +557,71 @@ func PerformUninstallSelected(ocDir string, components ComponentSet) error {
 
 	log.Printf("[ntech-team-kit] uninstalled %d files", removed)
 	return nil
+}
+
+func ownedManifestPaths(ocDir string) map[string]string {
+	paths := map[string]string{}
+	add := func(component, path string) {
+		abs, err := absClean(path)
+		if err == nil {
+			paths[abs] = component
+		}
+	}
+
+	for _, skill := range skills {
+		destDir := filepath.Join(ocDir, "skills", skill)
+		add(ComponentSkills, filepath.Join(destDir, "SKILL.md"))
+		for _, asset := range skillExtras[skill] {
+			add(ComponentSkills, filepath.Join(destDir, asset))
+		}
+	}
+
+	for _, agent := range agents {
+		add(ComponentAgents, filepath.Join(ocDir, "agents", agent+".md"))
+	}
+
+	for _, cmd := range commands {
+		add(ComponentCommands, filepath.Join(ocDir, "commands", cmd+".md"))
+	}
+
+	for _, rule := range rules {
+		add(ComponentRules, filepath.Join(ocDir, "rules", rule+".md"))
+	}
+
+	add(ComponentPlugin, filepath.Join(ocDir, "plugins", "ci-watcher.ts"))
+	add(ComponentConfig, filepath.Join(ocDir, "opencode.jsonc"))
+	return paths
+}
+
+func filterOwnedManifestEntries(ocDir string, entries []manifestEntry) []manifestEntry {
+	ownedPaths := ownedManifestPaths(ocDir)
+	filtered := make([]manifestEntry, 0, len(entries))
+	for _, entry := range entries {
+		if isOwnedManifestEntry(ownedPaths, entry) {
+			filtered = append(filtered, entry)
+			continue
+		}
+		log.Printf("[ntech-team-kit] skipping unsafe manifest entry: %s", entry.Path)
+	}
+	return filtered
+}
+
+func isOwnedManifestEntry(ownedPaths map[string]string, entry manifestEntry) bool {
+	if !ValidComponent(entry.Component) {
+		return false
+	}
+	abs, err := absClean(entry.Path)
+	if err != nil {
+		return false
+	}
+	return ownedPaths[abs] == entry.Component
+}
+
+func absClean(path string) (string, error) {
+	if path == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	return filepath.Abs(filepath.Clean(path))
 }
 
 func readManifest(path, ocDir string) ([]manifestEntry, error) {

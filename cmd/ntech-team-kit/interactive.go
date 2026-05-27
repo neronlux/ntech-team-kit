@@ -35,28 +35,34 @@ func runInteractive(root string) error {
 		configDir := kit.ConfigDir()
 		manifest := filepath.Join(configDir, ".ntech-team-kit-manifest")
 		if entries, err := readManifestCount(manifest); err == nil {
-			fmt.Printf("  Installed: %d files\n", entries)
+			fmt.Printf("  OpenCode installed: %d files\n", entries)
 		} else {
-			fmt.Println("  Installed: nothing")
+			fmt.Println("  OpenCode installed: nothing")
+		}
+		codexManifest := filepath.Join(filepath.Dir(kit.CodexSkillsDir()), ".ntech-team-kit-codex-manifest")
+		if entries, err := readManifestCount(codexManifest); err == nil {
+			fmt.Printf("  Codex installed: %d files\n", entries)
+		} else {
+			fmt.Println("  Codex installed: nothing")
 		}
 		fmt.Println("  ─────────────────────────────")
 		fmt.Println()
 		fmt.Println("  What would you like to do?")
 		fmt.Println()
 		if rootValid {
-			fmt.Println("    1) Install full pack (recommended)")
-			fmt.Println("    2) Install lite pack")
-			fmt.Println("    3) Install agents only")
-			fmt.Println("    4) Install skills only")
-			fmt.Println("    5) Custom install  (pick components)")
+			fmt.Println("    1) Install full pack (choose target)")
+			fmt.Println("    2) Install lite pack (choose target)")
+			fmt.Println("    3) Install agents only (OpenCode)")
+			fmt.Println("    4) Install skills only (choose target)")
+			fmt.Println("    5) Custom install  (choose target/components)")
 		} else {
 			fmt.Println("    (install options unavailable — kit root not found)")
 		}
-		fmt.Println("    6) Custom uninstall (pick components)")
-		fmt.Println("    7) Check status")
+		fmt.Println("    6) Custom uninstall (choose target/components)")
+		fmt.Println("    7) Check status (choose target)")
 		fmt.Println("    8) Run doctor")
 		if rootValid {
-			fmt.Println("    9) Update (refresh all content)")
+			fmt.Println("    9) Update (choose target)")
 		} else {
 			fmt.Println("    9) Update (unavailable — kit root not found)")
 		}
@@ -78,34 +84,59 @@ func runInteractive(root string) error {
 			if !requireRoot() {
 				continue
 			}
-			actionErr = performInstall(root, kit.FullComponentSet())
-		case "2":
-			if !requireRoot() {
-				continue
-			}
-			actionErr = performInstall(root, kit.LiteComponentSet())
-		case "3":
-			if !requireRoot() {
-				continue
-			}
-			actionErr = performInstall(root, kit.ComponentSet{kit.ComponentAgents: true})
-		case "4":
-			if !requireRoot() {
-				continue
-			}
-			actionErr = performInstall(root, kit.ComponentSet{kit.ComponentSkills: true})
-		case "5":
-			if !requireRoot() {
-				continue
-			}
-			components, err := promptComponentToggle(reader, "install")
+			target, err := promptResolvedTarget(reader, "install")
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
 				continue
 			}
-			actionErr = performInstall(root, components)
+			actionErr = performInstall(root, kit.FullComponentSet(), target)
+		case "2":
+			if !requireRoot() {
+				continue
+			}
+			target, err := promptResolvedTarget(reader, "install")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			actionErr = performInstall(root, kit.LiteComponentSet(), target)
+		case "3":
+			if !requireRoot() {
+				continue
+			}
+			actionErr = performInstall(root, kit.ComponentSet{kit.ComponentAgents: true}, "opencode")
+		case "4":
+			if !requireRoot() {
+				continue
+			}
+			target, err := promptResolvedTarget(reader, "install")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			actionErr = performInstall(root, kit.ComponentSet{kit.ComponentSkills: true}, target)
+		case "5":
+			if !requireRoot() {
+				continue
+			}
+			target, err := promptResolvedTarget(reader, "install")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			components, err := promptComponentToggleForTarget(reader, "install", target)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			actionErr = performInstall(root, components, target)
 		case "6":
-			components, err := promptComponentToggle(reader, "uninstall")
+			target, err := promptResolvedTarget(reader, "uninstall")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			components, err := promptComponentToggleForTarget(reader, "uninstall", target)
 			if err != nil {
 				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
 				continue
@@ -114,16 +145,26 @@ func runInteractive(root string) error {
 				fmt.Println("  Cancelled.")
 				continue
 			}
-			actionErr = kit.PerformUninstallSelected(configDir, components)
+			actionErr = performUninstallTarget(components, target)
 		case "7":
-			actionErr = kit.PrintStatus(configDir)
+			target, err := promptTarget(reader, "check status for")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			actionErr = performStatusTarget(target)
 		case "8":
 			actionErr = printDoctorResults(root, "  ")
 		case "9":
 			if !requireRoot() {
 				continue
 			}
-			runUpdate(root)
+			target, err := promptResolvedTarget(reader, "update")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			runUpdate(root, target)
 		case "0", "q", "quit":
 			fmt.Println("\n  Bye.")
 			return nil
@@ -150,13 +191,69 @@ func runInteractive(root string) error {
 	return nil
 }
 
-func performInstall(root string, components kit.ComponentSet) error {
-	return kit.PerformInstall(kit.InstallOptions{
-		KitRoot:    root,
-		ConfigDir:  kit.ConfigDir(),
-		Mode:       "copy",
-		Components: components,
-	})
+func performInstall(root string, components kit.ComponentSet, target string) error {
+	return performInstallTarget(root, "copy", components, target)
+}
+
+func promptTarget(reader *bufio.Reader, action string) (string, error) {
+	fmt.Printf("\n  Select target to %s.\n", action)
+	fmt.Println()
+	fmt.Println("    1) OpenCode")
+	fmt.Println("    2) Codex")
+	fmt.Println("    3) Both")
+	fmt.Println("    4) Auto-detect")
+	fmt.Println()
+	fmt.Println("  Codex installs skills for the Codex CLI, IDE extension, and app.")
+
+	for {
+		value := strings.ToLower(prompt(reader, "  Target [OpenCode]: "))
+		switch value {
+		case "":
+			return "opencode", nil
+		case "1", "opencode", "open-code", "open code":
+			return "opencode", nil
+		case "2", "codex":
+			return "codex", nil
+		case "3", "both":
+			return "both", nil
+		case "4", "auto", "auto-detect", "autodetect":
+			return "auto", nil
+		default:
+			if target, err := kit.NormalizeInstallTarget(value); err == nil {
+				return target, nil
+			}
+			fmt.Println("  Unknown target. Choose 1-4, opencode, codex, both, or auto.")
+		}
+	}
+}
+
+func promptResolvedTarget(reader *bufio.Reader, action string) (string, error) {
+	target, err := promptTarget(reader, action)
+	if err != nil {
+		return "", err
+	}
+	if target != "auto" {
+		return target, nil
+	}
+	resolved, err := kit.ResolveInstallTarget(target)
+	if err != nil {
+		return "", err
+	}
+	fmt.Printf("  Auto-detected target: %s\n", resolved)
+	return resolved, nil
+}
+
+func promptComponentToggleForTarget(reader *bufio.Reader, action string, target string) (kit.ComponentSet, error) {
+	target, err := kit.NormalizeInstallTarget(target)
+	if err != nil {
+		return nil, err
+	}
+	if target == "codex" {
+		fmt.Printf("\n  Codex %s uses the skills component only.\n", action)
+		fmt.Printf("  Location: %s\n", kit.CodexSkillsDir())
+		return kit.ComponentSet{kit.ComponentSkills: true}, nil
+	}
+	return promptComponentToggle(reader, action)
 }
 
 func promptComponentToggle(reader *bufio.Reader, action string) (kit.ComponentSet, error) {
@@ -204,7 +301,7 @@ func promptComponentToggle(reader *bufio.Reader, action string) (kit.ComponentSe
 				if defaultOn != nil {
 					return defaultOn, nil
 				}
-				return kit.FullComponentSet(), nil
+				return nil, fmt.Errorf("no components selected")
 			}
 			return selected, nil
 		}
@@ -257,6 +354,14 @@ func promptInstallComponents(reader *bufio.Reader) (kit.ComponentSet, error) {
 
 func promptUninstallComponents(reader *bufio.Reader) (kit.ComponentSet, error) {
 	return promptComponentToggle(reader, "uninstall")
+}
+
+func promptInstallComponentsForTarget(reader *bufio.Reader, target string) (kit.ComponentSet, error) {
+	return promptComponentToggleForTarget(reader, "install", target)
+}
+
+func promptUninstallComponentsForTarget(reader *bufio.Reader, target string) (kit.ComponentSet, error) {
+	return promptComponentToggleForTarget(reader, "uninstall", target)
 }
 
 func confirmAction(reader *bufio.Reader, action string) bool {

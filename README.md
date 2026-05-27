@@ -4,25 +4,25 @@
 
 # ntech-team-kit
 
-A portable, production-grade collection of skills, agents, commands, and rules that bring [Cursor Team Kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) workflows to [OpenCode](https://opencode.ai).
+A portable, production-grade collection of skills, agents, commands, and rules that bring [Cursor Team Kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) workflows to [OpenCode](https://opencode.ai) and [Codex](https://developers.openai.com/codex).
 
-If you like the rigorous internal workflows Cursor uses for code review, CI loops, and clean shipping processes, but prefer OpenCode as your AI coding agent, this kit gives you those same capabilities.
+If you like rigorous internal workflows for code review, CI loops, and clean shipping processes, this kit makes them easy to install for OpenCode and as Codex skills.
 
 ## What's included
 
 | Component | Count | Description |
 |-----------|-------|-------------|
-| Skills | 18 | On-demand workflows for CI, code review, shipping, verification, and code quality |
-| Agents | 2 | Specialized subagents, invoked via `@agent-name` in OpenCode |
-| Commands | 18 | `/command` shortcuts for every skill (1:1 with skills) |
-| Rules | 2 | Automatically loaded coding standards (no inline imports, exhaustive TypeScript switches) |
-| Plugin | 1 | Background CI watcher for proactive PR monitoring |
+| Skills | 18 | On-demand workflows for CI, code review, shipping, verification, and code quality; installable for OpenCode or Codex |
+| Agents | 2 | Specialized OpenCode subagents, invoked via `@agent-name` |
+| Commands | 18 | OpenCode `/command` shortcuts for every skill (1:1 with skills) |
+| Rules | 2 | OpenCode coding standards (no inline imports, exhaustive TypeScript switches) |
+| Plugin | 1 | OpenCode background CI watcher for proactive PR monitoring |
 
-Everything installs into `~/.config/opencode/`. A single command keeps all content in sync.
+OpenCode content installs into `~/.config/opencode/`. Codex skills install into `~/.agents/skills/`, the user-level skill location used by the Codex CLI, IDE extension, and app.
 
 ## Prerequisites
 
-- [OpenCode](https://opencode.ai) installed
+- [OpenCode](https://opencode.ai) or [Codex](https://developers.openai.com/codex) installed
 - [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (`gh auth login`)
 - Git configured with your user email
 
@@ -62,7 +62,7 @@ ntech-team-kit install [options]       Install selected kit components
 ntech-team-kit uninstall [options]     Remove installed files, optionally by component
 ntech-team-kit update                  Check for newer CLI + refresh all content
 ntech-team-kit doctor                  Health checks + daily update hint
-ntech-team-kit status                  Show installed files and manifest status
+ntech-team-kit status [--target ...]   Show installed files and manifest status
 ntech-team-kit version                 Print the CLI version
 ntech-team-kit path                    Print the resolved kit root directory
 ```
@@ -75,26 +75,27 @@ Running `ntech-team-kit` with no arguments opens a guided menu:
   ntech-team-kit 0.1.31
   ─────────────────────────────
   Kit root: /opt/homebrew/Cellar/ntech-team-kit/0.1.31
-  Installed: 44 files
+  OpenCode installed: 44 files
+  Codex installed: nothing
   ─────────────────────────────
 
   What would you like to do?
 
-    1) Install full pack (recommended)
-    2) Install lite pack
-    3) Install agents only
-    4) Install skills only
-    5) Custom install  (pick components)
-    6) Custom uninstall (pick components)
-    7) Check status
+    1) Install full pack (choose target)
+    2) Install lite pack (choose target)
+    3) Install agents only (OpenCode)
+    4) Install skills only (choose target)
+    5) Custom install  (choose target/components)
+    6) Custom uninstall (choose target/components)
+    7) Check status (choose target)
     8) Run doctor
-    9) Update (refresh all content)
+    9) Update (choose target)
     0) Quit
 ```
 
-The menu loops so you can run more than one action per session. After each action it asks whether to continue or exit.
+Target-aware actions ask whether to use OpenCode, Codex, both, or auto-detection. Codex installs the skills component for the Codex CLI, IDE extension, and app; OpenCode remains the target for agents, commands, rules, plugin, and config. The menu loops so you can run more than one action per session. After each action it asks whether to continue or exit.
 
-**Custom install/uninstall** shows a numbered component picker:
+**Custom install/uninstall** shows a numbered component picker for OpenCode and both-target actions. Codex-only actions use the skills component automatically:
 
 ```
   Select components to install.
@@ -125,9 +126,11 @@ echo | ntech-team-kit    # equivalent to: ntech-team-kit install
 - `--root <path>` — override kit root location
 - `NTECH_TEAM_KIT_ROOT` — environment variable form of `--root`
 - `OPENCODE_CONFIG_DIR` — override `~/.config/opencode` location
+- `NTECH_TEAM_KIT_CODEX_SKILLS_DIR` — override the Codex skill destination, defaulting to `~/.agents/skills`
 
 **Install options:**
 
+- `--target opencode|codex|both|auto` — target for install/status/update/uninstall, default: `opencode`
 - `--pack full|lite|agents|skills` — install a named component pack (default: full)
 - `--select` — choose components interactively
 - `--only <components>` — install only specific components (comma-separated)
@@ -152,12 +155,21 @@ Component names: `skills`, `agents`, `commands`, `rules`, `plugin`, `config`.
 
 ```bash
 ntech-team-kit install --pack lite
+ntech-team-kit install --target codex
+ntech-team-kit install --target both
+ntech-team-kit install --target auto
 ntech-team-kit install --select
 ntech-team-kit install --only skills,commands
 ntech-team-kit install --without plugin,agents
+ntech-team-kit status --target codex
 ntech-team-kit uninstall --select
+ntech-team-kit uninstall --target codex
 ntech-team-kit uninstall --only agents
 ```
+
+Codex currently receives the `skills` component. OpenCode receives the full component model: skills, agents, commands, rules, plugin, and config.
+
+When installing for Codex, the installer copies each skill to `~/.agents/skills/<skill-name>/` with its extra assets and generated `agents/openai.yaml` metadata for a cleaner Codex app experience.
 
 ### Keeping up to date
 
@@ -182,9 +194,9 @@ brew info neronlux/tap/ntech-team-kit
 cd ntech-team-kit && git pull && ntech-team-kit update
 ```
 
-`ntech-team-kit update` checks GitHub for a newer CLI version and always refreshes all skills, agents, commands, and rules from the current kit tree.
+`ntech-team-kit update` checks GitHub for a newer CLI version and refreshes content from the current kit tree. Use `ntech-team-kit update --target codex` or `--target both` to refresh Codex skills too.
 
-`ntech-team-kit doctor` prints a one-line update hint at most once per day.
+`ntech-team-kit doctor` detects OpenCode, Codex CLI, and Codex GUI installs on macOS and Linux, then prints a one-line update hint at most once per day.
 
 ## Quick start
 
@@ -230,7 +242,7 @@ Creates a descriptive branch from latest main, completes implementation, commits
 
 ## Skills
 
-Skills load on demand when invoked via the `skill` tool or `/command`.
+Skills load on demand when invoked via the OpenCode `skill` tool, an OpenCode `/command`, or Codex skill invocation such as `/skills` or `$skill-name`.
 
 | Skill | Trigger | Description |
 |-------|---------|-------------|
@@ -327,13 +339,13 @@ The CLI is a self-contained Go program (`cmd/ntech-team-kit/` + `internal/kit/`)
 
 - **Pure Go** — all commands run natively with no shell script delegation
 - **Modular layout** — `main.go` (entry point and dispatch), `interactive.go` (menu and prompts), `args.go` (CLI argument parsing)
-- **Interactive mode** — guided menu with numbered component picker, confirmation prompts, and piped-stdin detection
+- **Interactive mode** — guided target picker, numbered component picker, confirmation prompts, and piped-stdin detection
 - **Component packs** — install full, lite, agents-only, skills-only, or cherry-pick individual components
 - **Partial install/uninstall** — manifest tracks component ownership so you can add or remove components without touching others
 - **Kit root resolution** — `NTECH_TEAM_KIT_ROOT` env var, compiled ldflags (Homebrew), or auto-detection from binary location
 - **Atomic file writes** — copies content via temp + rename to handle symlink edge cases
 - **Atomic manifest** — collects the installed file list in memory and writes it atomically at the end of each install
-- **Doctor checks** — validates OpenCode, `gh`, authentication, kit layout, and manifest integrity
+- **Doctor checks** — validates OpenCode, Codex CLI/GUI, `gh`, authentication, kit layout, and manifest integrity
 
 ## Differences from cursor-team-kit
 

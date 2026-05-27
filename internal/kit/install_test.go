@@ -244,6 +244,42 @@ func TestPerformInstall_PartialInstallPreservesManifestEntries(t *testing.T) {
 	}
 }
 
+func TestPerformInstall_DropsUnsafeExistingManifestEntries(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+	outsideFile := filepath.Join(t.TempDir(), "outside.txt")
+	if err := os.WriteFile(outsideFile, []byte("outside"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := filepath.Join(configDir, ".ntech-team-kit-manifest")
+	validAgent := filepath.Join(configDir, "agents", agents[0]+".md")
+	data := ComponentAgents + "\t" + validAgent + "\n" + ComponentAgents + "\t" + outsideFile + "\n"
+	if err := os.WriteFile(manifest, []byte(data), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:    root,
+		ConfigDir:  configDir,
+		Mode:       "copy",
+		Components: ComponentSet{ComponentSkills: true},
+	}); err != nil {
+		t.Fatalf("partial install failed: %v", err)
+	}
+
+	manifestData, err := os.ReadFile(manifest)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(manifestData), outsideFile) {
+		t.Fatalf("unsafe existing manifest entry should be dropped, got:\n%s", string(manifestData))
+	}
+	if !strings.Contains(string(manifestData), validAgent) {
+		t.Fatalf("valid existing manifest entry should be preserved, got:\n%s", string(manifestData))
+	}
+}
+
 func TestPerformUninstallSelected(t *testing.T) {
 	root := createFakeKitRoot(t)
 	configDir := t.TempDir()
@@ -268,6 +304,64 @@ func TestPerformUninstallSelected(t *testing.T) {
 	}
 	if _, err := os.Stat(filepath.Join(configDir, ".ntech-team-kit-manifest")); err != nil {
 		t.Fatalf("partial uninstall should keep manifest: %v", err)
+	}
+}
+
+func TestPerformUninstallSelected_IgnoresManifestPathOutsideConfig(t *testing.T) {
+	configDir := t.TempDir()
+	outsideDir := t.TempDir()
+	outsideFile := filepath.Join(outsideDir, "keep.txt")
+	if err := os.WriteFile(outsideFile, []byte("keep me"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	manifest := filepath.Join(configDir, ".ntech-team-kit-manifest")
+	if err := os.WriteFile(manifest, []byte(ComponentSkills+"\t"+outsideFile+"\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformUninstallSelected(configDir, ComponentSet{ComponentSkills: true}); err != nil {
+		t.Fatalf("partial uninstall failed: %v", err)
+	}
+
+	if data, err := os.ReadFile(outsideFile); err != nil {
+		t.Fatalf("outside manifest path should not be removed: %v", err)
+	} else if string(data) != "keep me" {
+		t.Fatalf("outside manifest path was modified: %q", string(data))
+	}
+	if _, err := os.Stat(manifest); !os.IsNotExist(err) {
+		t.Fatalf("unsafe manifest entry should be dropped after uninstall, got err=%v", err)
+	}
+}
+
+func TestPerformInstall_PluginKeepsUserPluginPackageJSON(t *testing.T) {
+	root := createFakeKitRoot(t)
+	configDir := t.TempDir()
+
+	pluginPackage := filepath.Join(configDir, "plugins", "package.json")
+	if err := os.MkdirAll(filepath.Dir(pluginPackage), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	const userPackage = "{\"private\": true, \"name\": \"user-plugin\"}\n"
+	if err := os.WriteFile(pluginPackage, []byte(userPackage), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformInstall(InstallOptions{
+		KitRoot:    root,
+		ConfigDir:  configDir,
+		Mode:       "copy",
+		Components: ComponentSet{ComponentPlugin: true},
+	}); err != nil {
+		t.Fatalf("plugin install failed: %v", err)
+	}
+
+	data, err := os.ReadFile(pluginPackage)
+	if err != nil {
+		t.Fatalf("user plugin package.json should remain: %v", err)
+	}
+	if string(data) != userPackage {
+		t.Fatalf("user plugin package.json was modified: %q", string(data))
 	}
 }
 

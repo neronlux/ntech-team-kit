@@ -44,16 +44,25 @@ func main() {
 
 	switch command {
 	case "install":
+		target, args, err := splitTargetOption(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		mode := "copy"
 		for _, a := range args {
 			if a == "--link" {
 				mode = "link"
 			}
 		}
-		var err error
 		components := kit.FullComponentSet()
 		if hasArg(args, "--select") {
-			components, err = promptInstallComponents(bufio.NewReader(os.Stdin))
+			target, err = resolveTargetForComponentPrompt(target)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			components, err = promptInstallComponentsForTarget(bufio.NewReader(os.Stdin), target)
 		} else {
 			components, err = parseInstallComponents(args)
 		}
@@ -61,21 +70,25 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		if err := kit.PerformInstall(kit.InstallOptions{
-			KitRoot:    root,
-			ConfigDir:  kit.ConfigDir(),
-			Mode:       mode,
-			Components: components,
-		}); err != nil {
+		if err := performInstallTarget(root, mode, components, target); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "uninstall":
+		target, args, err := splitTargetOption(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
 		var components kit.ComponentSet
-		var err error
 		if hasArg(args, "--select") {
-			components, err = promptUninstallComponents(bufio.NewReader(os.Stdin))
+			target, err = resolveTargetForComponentPrompt(target)
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+				os.Exit(1)
+			}
+			components, err = promptUninstallComponentsForTarget(bufio.NewReader(os.Stdin), target)
 		} else {
 			components, err = parseUninstallComponents(args)
 		}
@@ -83,19 +96,29 @@ func main() {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
-		if err := kit.PerformUninstallSelected(kit.ConfigDir(), components); err != nil {
+		if err := performUninstallTarget(components, target); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "status":
-		if err := kit.PrintStatus(kit.ConfigDir()); err != nil {
+		target, _, err := splitTargetOption(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		if err := performStatusTarget(target); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}
 
 	case "update":
-		runUpdate(root)
+		target, _, err := splitTargetOption(args)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			os.Exit(1)
+		}
+		runUpdate(root, target)
 
 	case "doctor":
 		runDoctor(root)
@@ -149,8 +172,12 @@ func printDoctorResults(root string, indent string) error {
 	for _, r := range results {
 		status := "✅"
 		if !r.Passed {
-			status = "❌"
-			allGood = false
+			if r.Optional {
+				status = "⚠️"
+			} else {
+				status = "❌"
+				allGood = false
+			}
 		}
 		fmt.Printf("%s%s %-20s %s\n", indent, status, r.Name, r.Message)
 	}
@@ -177,7 +204,105 @@ func runDoctor(root string) {
 	}
 }
 
-func runUpdate(root string) {
+func resolveTargetForComponentPrompt(target string) (string, error) {
+	if target != "auto" {
+		return target, nil
+	}
+	resolved, err := kit.ResolveInstallTarget(target)
+	if err != nil {
+		return "", err
+	}
+	fmt.Printf("Auto-detected target: %s\n", resolved)
+	return resolved, nil
+}
+
+func performInstallTarget(root string, mode string, components kit.ComponentSet, target string) error {
+	target, err := kit.ResolveInstallTarget(target)
+	if err != nil {
+		return err
+	}
+	if kit.TargetIncludesOpenCode(target) {
+		if err := kit.PerformInstall(kit.InstallOptions{
+			KitRoot:    root,
+			ConfigDir:  kit.ConfigDir(),
+			Mode:       mode,
+			Components: components,
+		}); err != nil {
+			return err
+		}
+	}
+	if kit.TargetIncludesCodex(target) {
+		if !components.Includes(kit.ComponentSkills) && target == "codex" {
+			return fmt.Errorf("Codex target only supports skills; include the skills component")
+		}
+		if components.Includes(kit.ComponentSkills) {
+			if err := kit.PerformCodexInstall(kit.CodexInstallOptions{
+				KitRoot:   root,
+				SkillsDir: kit.CodexSkillsDir(),
+				Mode:      mode,
+			}); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func performUninstallTarget(components kit.ComponentSet, target string) error {
+	target, err := kit.ResolveInstallTarget(target)
+	if err != nil {
+		return err
+	}
+	if kit.TargetIncludesOpenCode(target) {
+		if err := kit.PerformUninstallSelected(kit.ConfigDir(), components); err != nil {
+			return err
+		}
+	}
+	if kit.TargetIncludesCodex(target) {
+		if !components.Includes(kit.ComponentSkills) && target == "codex" {
+			return fmt.Errorf("Codex target only supports skills; include the skills component")
+		}
+		if components.Includes(kit.ComponentSkills) {
+			if err := kit.PerformCodexUninstall(kit.CodexSkillsDir()); err != nil {
+				return err
+			}
+		}
+	}
+	return nil
+}
+
+func performStatusTarget(target string) error {
+	target, err := kit.NormalizeInstallTarget(target)
+	if err != nil {
+		return err
+	}
+	if target == "auto" {
+		resolved, err := kit.ResolveInstallTarget(target)
+		if err == nil {
+			fmt.Printf("Auto-detected target: %s\n", resolved)
+			target = resolved
+		} else {
+			fmt.Printf("Auto-detection failed: %v\n", err)
+			fmt.Println("Showing both status reports instead.")
+			target = "both"
+		}
+	}
+	if kit.TargetIncludesOpenCode(target) {
+		fmt.Println("OpenCode status:")
+		if err := kit.PrintStatus(kit.ConfigDir()); err != nil {
+			return err
+		}
+	}
+	if kit.TargetIncludesCodex(target) {
+		fmt.Println("Codex status:")
+		if err := kit.PrintCodexStatus(kit.CodexSkillsDir()); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func runUpdate(root string, target string) {
 	cur := getVersion()
 	fmt.Printf("Current CLI: %s\n", cur)
 	if latest, avail, err := kit.CheckForUpdate(cur); err == nil {
@@ -191,13 +316,8 @@ func runUpdate(root string) {
 		fmt.Printf("Could not reach GitHub for version check: %v\n", err)
 	}
 
-	fmt.Println("\n→ Refreshing all kit components into OpenCode config...")
-	if err := kit.PerformInstall(kit.InstallOptions{
-		KitRoot:    root,
-		ConfigDir:  kit.ConfigDir(),
-		Mode:       "copy",
-		Components: kit.FullComponentSet(),
-	}); err != nil {
+	fmt.Println("\n→ Refreshing kit components...")
+	if err := performInstallTarget(root, "copy", kit.FullComponentSet(), target); err != nil {
 		fmt.Fprintf(os.Stderr, "Content refresh failed: %v\n", err)
 		os.Exit(1)
 	}
@@ -207,7 +327,7 @@ func runUpdate(root string) {
 }
 
 func printUsage() {
-	fmt.Print(`ntech-team-kit - OpenCode skills, agents, and rules installer
+	fmt.Print(`ntech-team-kit - OpenCode and Codex skills, agents, and rules installer
 
 Usage:
   ntech-team-kit                     Start interactive setup
@@ -218,7 +338,7 @@ Commands:
   uninstall   Remove installed files, optionally by component
   status      Show current installation status
   update      Check for newer CLI + refresh all skills/agents/commands/rules
-  doctor      Run health checks (OpenCode, gh, auth, etc.)
+  doctor      Run health checks (OpenCode, Codex, gh, auth, etc.)
   version     Print version
   path        Print the resolved kit root directory
 
@@ -228,20 +348,25 @@ Global options:
 Environment variables:
   NTECH_TEAM_KIT_ROOT   Same as --root
   OPENCODE_CONFIG_DIR   Override ~/.config/opencode location
+  NTECH_TEAM_KIT_CODEX_SKILLS_DIR   Override ~/.agents/skills for Codex skills
 
 Examples:
   ntech-team-kit install
+  ntech-team-kit install --target codex
+  ntech-team-kit install --target both
   ntech-team-kit install --pack lite
   ntech-team-kit install --select
   ntech-team-kit install --only skills,commands
   ntech-team-kit install --without plugin,agents
   ntech-team-kit install --link
+  ntech-team-kit status --target codex
   ntech-team-kit uninstall --select
   ntech-team-kit uninstall --only agents
   ntech-team-kit doctor
   NTECH_TEAM_KIT_ROOT=/path/to/kit ntech-team-kit status
 
 Install options:
+  --target opencode|codex|both|auto   Target for install/status/update/uninstall (default: opencode)
   --pack full|lite|agents|skills   Install a named component pack (default: full)
   --select                         Choose components interactively
   --only <components>              Install only a comma-separated component list

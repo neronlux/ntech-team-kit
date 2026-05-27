@@ -1,5 +1,5 @@
 class NtechTeamKit < Formula
-  desc "OpenCode-native skills, agents, commands, and rules (Cursor Team Kit port)"
+  desc "OpenCode and Codex skills, agents, commands, and rules (Cursor Team Kit port)"
   homepage "https://github.com/neronlux/ntech-team-kit"
   url "https://github.com/neronlux/ntech-team-kit/archive/refs/tags/v0.1.32.tar.gz"
   sha256 "9a1fc77e7e955d68c17843ce6dd7dfdba84f6ae8e7f55c18de8591f92d02062a"
@@ -31,6 +31,10 @@ class NtechTeamKit < Formula
       Run the following to copy skills, agents, commands and rules into your OpenCode config:
 
         ntech-team-kit install
+
+      Or install the skills for Codex CLI / IDE / app:
+
+        ntech-team-kit install --target codex
 
       The CLI is now fully native Go (no shell script delegation), making
       install / update / uninstall / status reliable across platforms.

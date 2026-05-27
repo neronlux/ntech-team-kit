@@ -1,6 +1,6 @@
 # ntech-team-kit
 
-A portable kit of OpenCode skills, agents, commands, and rules for CI, code review, shipping, and test reliability. Forked from [cursor/plugins/cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) and adapted for [OpenCode](https://opencode.ai).
+A portable kit of OpenCode and Codex skills, agents, commands, and rules for CI, code review, shipping, and test reliability. Forked from [cursor/plugins/cursor-team-kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) and adapted for [OpenCode](https://opencode.ai) and Codex.
 
 ## Rules
 
@@ -18,7 +18,7 @@ When adding a new skill to `skills/`, you must also create a matching `commands/
 
 ## Interactive mode
 
-Running `ntech-team-kit` with no arguments opens a guided menu that loops until the user quits. The menu shows version, kit root status, and installed file count. Options include full/lite/agents/skills install, custom install with a numbered component picker, custom uninstall with confirmation, status, doctor, and update.
+Running `ntech-team-kit` with no arguments opens a guided menu that loops until the user quits. The menu shows version, kit root status, OpenCode installed file count, and Codex installed file count. Target-aware options include full/lite/skills install, custom install, custom uninstall, status, and update with a picker for OpenCode, Codex, both, or auto-detect. Agents-only install remains OpenCode-only because Codex consumes skills. Custom install/uninstall uses a numbered component picker, and uninstall asks for confirmation.
 
 When stdin is not a terminal (piped), the interactive mode runs the default action (full install) and exits without looping. This makes `echo | ntech-team-kit` safe for CI scripts.
 
@@ -26,6 +26,7 @@ When stdin is not a terminal (piped), the interactive mode runs the default acti
 
 The CLI supports installing and uninstalling individual components:
 
+- `--target opencode|codex|both|auto` — install/status/update/uninstall target
 - `--pack full|lite|agents|skills` — named packs
 - `--only <components>` — cherry-pick components
 - `--without <components>` — exclude components from a pack
@@ -33,6 +34,10 @@ The CLI supports installing and uninstalling individual components:
 - `uninstall --only <components>` — partial uninstall preserving other components
 
 The manifest tracks component ownership (`component\tpath` format). Partial installs merge with existing entries; partial uninstalls update the manifest instead of deleting it. Empty `ComponentSet` means "all" for backward compatibility.
+
+### Codex support
+
+Codex receives the skills component in the user-level `~/.agents/skills` location, with `NTECH_TEAM_KIT_CODEX_SKILLS_DIR` available as an override. The same installed skills are available to Codex CLI, IDE, and GUI. The interactive menu and CLI both support `opencode`, `codex`, `both`, and `auto` targets for install, uninstall, update, and status. OpenCode remains the full target for skills, agents, commands, rules, plugin, and config. Doctor auto-detects OpenCode CLI, Codex CLI, and Codex GUI on macOS and Linux.
 
 ## Release process
 

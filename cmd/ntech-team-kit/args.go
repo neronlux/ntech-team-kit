@@ -16,6 +16,35 @@ func hasArg(args []string, name string) bool {
 	return false
 }
 
+func splitTargetOption(args []string) (string, []string, error) {
+	target := "opencode"
+	remaining := make([]string, 0, len(args))
+	for i := 0; i < len(args); i++ {
+		arg := args[i]
+		switch {
+		case arg == "--target":
+			if i+1 >= len(args) {
+				return "", nil, fmt.Errorf("--target requires a value")
+			}
+			next, err := kit.NormalizeInstallTarget(args[i+1])
+			if err != nil {
+				return "", nil, err
+			}
+			target = next
+			i++
+		case strings.HasPrefix(arg, "--target="):
+			next, err := kit.NormalizeInstallTarget(strings.TrimPrefix(arg, "--target="))
+			if err != nil {
+				return "", nil, err
+			}
+			target = next
+		default:
+			remaining = append(remaining, arg)
+		}
+	}
+	return target, remaining, nil
+}
+
 func parseInstallComponents(args []string) (kit.ComponentSet, error) {
 	components := kit.FullComponentSet()
 	for i := 0; i < len(args); i++ {
