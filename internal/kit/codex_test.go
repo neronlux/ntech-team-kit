@@ -136,6 +136,59 @@ func TestPerformCodexInstall_RewritesCompatibilityForCodexCopy(t *testing.T) {
 	}
 }
 
+func TestPerformCodexInstall_AppliesCodexSpecificSkillText(t *testing.T) {
+	root := createFakeKitRoot(t)
+	skillsDir := t.TempDir()
+	src := filepath.Join(root, "skills", "workflow-from-chats", "SKILL.md")
+	if err := os.WriteFile(src, []byte(`---
+name: workflow-from-chats
+description: Extract durable working preferences from recent OpenCode sessions and convert them into skills, rules, or workflow docs.
+compatibility: opencode
+---
+
+# Workflow From Sessions
+
+- Read parent transcripts and relevant subagent transcripts. Use subagent content as evidence, but cite only parent conversations.
+`), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformCodexInstall(CodexInstallOptions{
+		KitRoot:   root,
+		SkillsDir: skillsDir,
+		Mode:      "copy",
+	}); err != nil {
+		t.Fatalf("PerformCodexInstall failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(skillsDir, "workflow-from-chats", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	if strings.Contains(text, "recent OpenCode sessions") {
+		t.Fatalf("Codex copy should not describe itself as OpenCode-only:\n%s", text)
+	}
+	if !strings.Contains(text, "recent Codex or OpenCode sessions") {
+		t.Fatalf("Codex copy missing target-neutral session wording:\n%s", text)
+	}
+	if !strings.Contains(text, "subagent/custom-agent transcripts") {
+		t.Fatalf("Codex copy missing custom-agent wording:\n%s", text)
+	}
+
+	metadata, err := os.ReadFile(filepath.Join(skillsDir, "workflow-from-chats", "agents", "openai.yaml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	metadataText := string(metadata)
+	if strings.Contains(metadataText, "recent OpenCode sessions") {
+		t.Fatalf("Codex metadata should not describe itself as OpenCode-only:\n%s", metadataText)
+	}
+	if !strings.Contains(metadataText, "recent Codex or OpenCode sessions") {
+		t.Fatalf("Codex metadata missing target-neutral description:\n%s", metadataText)
+	}
+}
+
 func TestPerformCodexUninstall_RemovesOnlyOwnedSkillPaths(t *testing.T) {
 	root := createFakeKitRoot(t)
 	skillsDir := t.TempDir()

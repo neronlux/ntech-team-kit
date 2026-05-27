@@ -29,6 +29,7 @@ func TestSkillFilesMeetOpenCodeAndCodexSpec(t *testing.T) {
 		if got := frontmatter["name"]; got != skill {
 			t.Fatalf("%s name = %q, want %q", path, got, skill)
 		}
+		assertFrontmatterHasNoUnquotedColonSpaceForTest(t, path)
 		if !agentNamePattern.MatchString(skill) || len(skill) > 64 {
 			t.Fatalf("%s does not match OpenCode/Codex skill naming rules", skill)
 		}
@@ -159,6 +160,33 @@ func readMarkdownFrontmatterForTest(t *testing.T, path string) (map[string]strin
 		}
 	}
 	return frontmatter, parts[1]
+}
+
+func assertFrontmatterHasNoUnquotedColonSpaceForTest(t *testing.T, path string) {
+	t.Helper()
+	data := string(mustReadForTest(t, path))
+	rest := strings.TrimPrefix(data, "---\n")
+	parts := strings.SplitN(rest, "\n---\n", 2)
+	if len(parts) != 2 {
+		t.Fatalf("%s missing closing YAML frontmatter", path)
+	}
+	for lineNumber, line := range strings.Split(parts[0], "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "#") || strings.HasPrefix(line, "-") {
+			continue
+		}
+		_, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		value = strings.TrimSpace(value)
+		if value == "" || strings.HasPrefix(value, "\"") || strings.HasPrefix(value, "'") {
+			continue
+		}
+		if strings.Contains(value, ": ") {
+			t.Fatalf("%s:%d has an unquoted YAML scalar containing ': ': %s", path, lineNumber+2, line)
+		}
+	}
 }
 
 func mustReadForTest(t *testing.T, path string) []byte {

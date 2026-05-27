@@ -28,6 +28,32 @@ type CodexAgentInstallOptions struct {
 	Verbose   bool
 }
 
+type codexTextReplacement struct {
+	from string
+	to   string
+}
+
+var codexSkillTextReplacements = map[string][]codexTextReplacement{
+	"workflow-from-chats": {
+		{
+			from: "recent OpenCode sessions",
+			to:   "recent Codex or OpenCode sessions",
+		},
+		{
+			from: "relevant subagent transcripts. Use subagent content",
+			to:   "relevant subagent/custom-agent transcripts. Use child-agent content",
+		},
+		{
+			from: "relevant subagents",
+			to:   "relevant subagents/custom agents",
+		},
+		{
+			from: "subagent consensus",
+			to:   "child-agent consensus",
+		},
+	},
+}
+
 func CodexSkillsDir() string {
 	if dir := os.Getenv("NTECH_TEAM_KIT_CODEX_SKILLS_DIR"); dir != "" {
 		return dir
@@ -85,7 +111,8 @@ func PerformCodexInstall(opts CodexInstallOptions) error {
 		if err != nil {
 			return fmt.Errorf("source file missing from kit root (%s): %s", opts.KitRoot, src)
 		}
-		if err := writeFileAtomic(dest, codexSkillMarkdown(data), 0o644); err != nil {
+		skill := filepath.Base(filepath.Dir(src))
+		if err := writeFileAtomic(dest, codexSkillMarkdown(skill, data), 0o644); err != nil {
 			return fmt.Errorf("failed to write Codex skill %s: %w", dest, err)
 		}
 		manifestEntries = append(manifestEntries, manifestEntry{Component: ComponentSkills, Path: dest})
@@ -367,6 +394,7 @@ func installGeneratedCodexMetadata(skill string, skillSrc string, dest string, d
 	if description == "" {
 		description = "ntech-team-kit workflow for " + skill + "."
 	}
+	description = applyCodexSkillTextReplacements(skill, description)
 	data := "interface:\n" +
 		"  display_name: " + strconv.Quote(displayNameForSkill(skill)) + "\n" +
 		"  short_description: " + strconv.Quote(description) + "\n" +
@@ -387,7 +415,7 @@ func installGeneratedCodexMetadata(skill string, skillSrc string, dest string, d
 	return nil
 }
 
-func codexSkillMarkdown(data []byte) []byte {
+func codexSkillMarkdown(skill string, data []byte) []byte {
 	lines := strings.Split(string(data), "\n")
 	inFrontmatter := false
 	frontmatterClosed := false
@@ -414,7 +442,14 @@ func codexSkillMarkdown(data []byte) []byte {
 	if !inFrontmatter || !frontmatterClosed {
 		return data
 	}
-	return []byte(strings.Join(lines, "\n"))
+	return []byte(applyCodexSkillTextReplacements(skill, strings.Join(lines, "\n")))
+}
+
+func applyCodexSkillTextReplacements(skill string, text string) string {
+	for _, replacement := range codexSkillTextReplacements[skill] {
+		text = strings.ReplaceAll(text, replacement.from, replacement.to)
+	}
+	return text
 }
 
 func codexAgentTOML(name string, data []byte) []byte {
