@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://assets.ntek.app/ntechteamkit.jpg" alt="ntech-team-kit" width="400" />
+  <img src="https://assets.ntek.app/teamkitcodex.png" alt="ntech-team-kit" width="400" />
 </p>
 
 # ntech-team-kit
@@ -29,7 +29,7 @@ OpenCode content installs into `~/.config/opencode/`. Codex skills install into 
 | Codex app | `--target codex` | The same skills and custom agents, with generated `agents/openai.yaml` metadata for the Skills view | Type `$` in the composer or pick enabled skills from the slash command list |
 | Codex IDE extension | `--target codex` | The same shared Codex skills in `~/.agents/skills` | Use Codex skill invocation from the extension; the installer also places generated agents in the shared Codex location for harnesses that surface custom agents |
 
-The installer keeps one source tree and emits the right shape for each harness. OpenCode gets native markdown agents and commands. Codex gets rewritten skill frontmatter, app metadata, and TOML custom agents with conservative read-only defaults.
+The installer keeps one source tree and emits the right shape for each harness. OpenCode gets native markdown skills, markdown agents, commands, rules, config, and the optional plugin. Codex gets copied skill directories with `compatibility: codex`, generated Skills-view metadata, Codex-specific wording where source guidance would otherwise be OpenCode-only, and TOML custom agents with conservative read-only defaults.
 
 ## Prerequisites
 
@@ -195,7 +195,9 @@ ntech-team-kit uninstall --only agents
 
 Codex receives target-specific `skills` and `agents`. OpenCode receives the full component model: skills, agents, commands, rules, plugin, and config. Codex ignores OpenCode-only commands, rules, plugin, and config.
 
-When installing for Codex, the installer copies each skill to `~/.agents/skills/<skill-name>/`, rewrites the installed copy as Codex-compatible, adds extra assets and generated `agents/openai.yaml` metadata, generates Codex custom agents in `~/.codex/agents/*.toml`, and opens the Codex Skills view via `codex://skills` on macOS or Linux. If Codex does not show a new skill immediately, restart the Codex harness.
+When installing for Codex, the installer copies each skill to `~/.agents/skills/<skill-name>/`, rewrites the installed copy as Codex-compatible, applies small Codex-specific text adaptations where needed, adds extra assets and generated `agents/openai.yaml` metadata, generates Codex custom agents in `~/.codex/agents/*.toml`, and opens the Codex Skills view via `codex://skills` on macOS or Linux. If Codex does not show a new skill immediately, restart the Codex harness.
+
+Codex users invoke skills with `$skill-name` in the composer or from `/skills`. For example, use `$verify-this` to prove a claim with baseline/treatment evidence, `$review-and-ship` to review the current branch, or `$workflow-from-chats` to extract durable preferences from recent Codex or OpenCode sessions. OpenCode users keep using the matching `/command` shortcuts and `@agent-name` markdown agents.
 
 ### Keeping up to date
 
@@ -257,6 +259,8 @@ The "thermo-nuclear" maintainability audit: 1k-line rule, code-judo moves, spagh
 ```
 
 Captures baseline vs treatment, returns `VERIFIED`, `NOT VERIFIED`, or `INCONCLUSIVE`.
+
+In Codex, invoke the same workflow with `$verify-this`.
 
 ### Start fresh work with a PR
 
