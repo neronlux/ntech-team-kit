@@ -17,10 +17,14 @@ type CheckResult struct {
 }
 
 func RunDoctor(kitRoot string) []CheckResult {
-	return RunDoctorWithDir(kitRoot, ConfigDir())
+	return RunDoctorWithDirs(kitRoot, ConfigDir(), CodexSkillsDir(), CodexAgentsDir())
 }
 
 func RunDoctorWithDir(kitRoot string, ocDir string) []CheckResult {
+	return RunDoctorWithDirs(kitRoot, ocDir, CodexSkillsDir(), CodexAgentsDir())
+}
+
+func RunDoctorWithDirs(kitRoot string, ocDir string, codexSkillsDir string, codexAgentsDir string) []CheckResult {
 	var results []CheckResult
 
 	openCode := checkOpenCode()
@@ -34,7 +38,7 @@ func RunDoctorWithDir(kitRoot string, ocDir string) []CheckResult {
 	results = append(results, checkGhCLI())
 	results = append(results, checkGhAuth())
 	results = append(results, checkKitRoot(kitRoot))
-	results = append(results, checkManifest(ocDir))
+	results = append(results, checkInstallManifests(ocDir, codexSkillsDir, codexAgentsDir))
 	results = append(results, checkKitContents(kitRoot))
 
 	return results
@@ -173,22 +177,30 @@ func globPaths(pattern string) ([]string, error) {
 }
 
 func checkGhCLI() CheckResult {
-	if _, err := exec.LookPath("gh"); err == nil {
-		return CheckResult{Name: "GitHub CLI (gh)", Passed: true, Message: "found in PATH"}
+	return checkGhCLIWith(exec.LookPath)
+}
+
+func checkGhCLIWith(lookPath func(string) (string, error)) CheckResult {
+	if _, err := lookPath("gh"); err == nil {
+		return CheckResult{Name: "GitHub CLI (gh)", Passed: true, Message: "found in PATH", Optional: true}
 	}
-	return CheckResult{Name: "GitHub CLI (gh)", Passed: false, Message: "gh not found. Install from https://cli.github.com"}
+	return CheckResult{Name: "GitHub CLI (gh)", Passed: false, Message: "gh not found. Required for GitHub-dependent skills.", Optional: true}
 }
 
 func checkGhAuth() CheckResult {
 	cmd := exec.Command("gh", "auth", "status")
 	output, err := cmd.CombinedOutput()
+	return checkGhAuthResult(output, err)
+}
+
+func checkGhAuthResult(output []byte, err error) CheckResult {
 	if err != nil {
-		return CheckResult{Name: "gh auth", Passed: false, Message: "gh is not authenticated. Run: gh auth login"}
+		return CheckResult{Name: "gh auth", Passed: false, Message: "not authenticated. Run 'gh auth login' before GitHub-dependent skills.", Optional: true}
 	}
 	if strings.Contains(string(output), "Logged in") {
-		return CheckResult{Name: "gh auth", Passed: true, Message: "authenticated"}
+		return CheckResult{Name: "gh auth", Passed: true, Message: "authenticated", Optional: true}
 	}
-	return CheckResult{Name: "gh auth", Passed: false, Message: "gh authentication issue"}
+	return CheckResult{Name: "gh auth", Passed: false, Message: "authentication issue. Run 'gh auth status' for details.", Optional: true}
 }
 
 func checkKitRoot(root string) CheckResult {
@@ -201,13 +213,36 @@ func checkKitRoot(root string) CheckResult {
 	return CheckResult{Name: "Kit Root", Passed: true, Message: root}
 }
 
-func checkManifest(ocDir string) CheckResult {
-	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
-
-	if _, err := os.Stat(manifest); err == nil {
-		return CheckResult{Name: "Install Manifest", Passed: true, Message: "kit is installed (manifest found)"}
+func checkInstallManifests(ocDir string, codexSkillsDir string, codexAgentsDir string) CheckResult {
+	var installed []string
+	if count, ok := openCodeManifestCount(ocDir); ok {
+		installed = append(installed, fmt.Sprintf("OpenCode: %d files", count))
 	}
-	return CheckResult{Name: "Install Manifest", Passed: false, Message: "no install manifest found (run 'ntech-team-kit install')"}
+	if count, ok := codexManifestCount(codexSkillsDir, codexAgentsDir); ok {
+		installed = append(installed, fmt.Sprintf("Codex: %d files", count))
+	}
+	if len(installed) > 0 {
+		return CheckResult{Name: "Install Manifest", Passed: true, Message: strings.Join(installed, "; ")}
+	}
+	return CheckResult{Name: "Install Manifest", Passed: false, Message: "no OpenCode or Codex install manifest found (run 'ntech-team-kit install')"}
+}
+
+func openCodeManifestCount(ocDir string) (int, bool) {
+	manifest := filepath.Join(ocDir, ".ntech-team-kit-manifest")
+	entries, err := readManifest(manifest, ocDir)
+	if err != nil {
+		return 0, false
+	}
+	return len(filterOwnedManifestEntries(ocDir, entries)), true
+}
+
+func codexManifestCount(skillsDir string, agentsDir string) (int, bool) {
+	manifest := codexManifestPath(skillsDir)
+	entries, err := readManifest(manifest, filepath.Dir(skillsDir))
+	if err != nil {
+		return 0, false
+	}
+	return len(filterOwnedCodexManifestEntries(skillsDir, agentsDir, entries)), true
 }
 
 // checkKitContents uses the strict ValidateKitRoot to surface packaging / layout problems.

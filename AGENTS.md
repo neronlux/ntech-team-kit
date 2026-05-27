@@ -18,7 +18,7 @@ When adding a new skill to `skills/`, you must also create a matching `commands/
 
 ## Interactive mode
 
-Running `ntech-team-kit` with no arguments opens a guided menu that loops until the user quits. The menu shows version, kit root status, OpenCode installed file count, and Codex installed file count. Target-aware options include full/lite/skills install, custom install, custom uninstall, status, and update with a picker for OpenCode, Codex, both, or auto-detect. Agents-only install remains OpenCode-only because Codex consumes skills. Custom install/uninstall uses a numbered component picker, and uninstall asks for confirmation.
+Running `ntech-team-kit` with no arguments opens a guided menu that loops until the user quits. The menu shows version, kit root status, OpenCode installed file count, and Codex installed file count. Target-aware options include full/lite/agents/skills install, custom install, custom uninstall, status, and update with a picker for OpenCode, Codex, both, or auto-detect. OpenCode agents install as markdown files; Codex agents install as generated TOML custom agents. Custom install/uninstall uses a numbered component picker, and uninstall asks for confirmation.
 
 When stdin is not a terminal (piped), the interactive mode runs the default action (full install) and exits without looping. This makes `echo | ntech-team-kit` safe for CI scripts.
 
@@ -37,7 +37,7 @@ The manifest tracks component ownership (`component\tpath` format). Partial inst
 
 ### Codex support
 
-Codex receives the skills component in the user-level `~/.agents/skills` location, with `NTECH_TEAM_KIT_CODEX_SKILLS_DIR` available as an override. The same installed skills are available to Codex CLI, IDE, and GUI. The interactive menu and CLI both support `opencode`, `codex`, `both`, and `auto` targets for install, uninstall, update, and status. OpenCode remains the full target for skills, agents, commands, rules, plugin, and config. Doctor auto-detects OpenCode CLI, Codex CLI, and Codex GUI on macOS and Linux.
+Codex receives target-specific skills in `~/.agents/skills` and generated custom agents in `~/.codex/agents`, with `NTECH_TEAM_KIT_CODEX_SKILLS_DIR` and `NTECH_TEAM_KIT_CODEX_AGENTS_DIR` available as overrides. The installer rewrites Codex-installed skill copies as Codex-compatible, generates skill `agents/openai.yaml`, generates Codex agent TOML from OpenCode markdown agents, and opens the Codex Skills view via `codex://skills` on macOS or Linux; set `NTECH_TEAM_KIT_CODEX_SKIP_APP_REFRESH=1` for CI or headless runs. The same installed skills are available to Codex CLI, IDE, and GUI. Codex custom-agent activity is currently surfaced in Codex CLI and app. The interactive menu and CLI both support `opencode`, `codex`, `both`, and `auto` targets for install, uninstall, update, and status. OpenCode remains the full target for skills, agents, commands, rules, plugin, and config. Doctor auto-detects OpenCode CLI, Codex CLI, and Codex GUI on macOS and Linux, and its install-manifest check passes for OpenCode-only, Codex-only, or both-target installs.
 
 ## Release process
 

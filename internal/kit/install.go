@@ -453,7 +453,12 @@ func writeManifest(path string, entries []manifestEntry) error {
 	}
 	data := strings.Join(lines, "\n") + "\n"
 
-	tmp, err := os.CreateTemp(filepath.Dir(path), ".ntech-team-kit-manifest.tmp-*")
+	dir := filepath.Dir(path)
+	if err := os.MkdirAll(dir, 0o755); err != nil {
+		return err
+	}
+
+	tmp, err := os.CreateTemp(dir, ".ntech-team-kit-manifest.tmp-*")
 	if err != nil {
 		return err
 	}

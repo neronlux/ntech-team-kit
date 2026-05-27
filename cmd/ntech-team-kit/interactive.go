@@ -52,7 +52,7 @@ func runInteractive(root string) error {
 		if rootValid {
 			fmt.Println("    1) Install full pack (choose target)")
 			fmt.Println("    2) Install lite pack (choose target)")
-			fmt.Println("    3) Install agents only (OpenCode)")
+			fmt.Println("    3) Install agents only (choose target)")
 			fmt.Println("    4) Install skills only (choose target)")
 			fmt.Println("    5) Custom install  (choose target/components)")
 		} else {
@@ -104,7 +104,12 @@ func runInteractive(root string) error {
 			if !requireRoot() {
 				continue
 			}
-			actionErr = performInstall(root, kit.ComponentSet{kit.ComponentAgents: true}, "opencode")
+			target, err := promptResolvedTarget(reader, "install")
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "  Error: %v\n", err)
+				continue
+			}
+			actionErr = performInstall(root, kit.ComponentSet{kit.ComponentAgents: true}, target)
 		case "4":
 			if !requireRoot() {
 				continue
@@ -203,7 +208,7 @@ func promptTarget(reader *bufio.Reader, action string) (string, error) {
 	fmt.Println("    3) Both")
 	fmt.Println("    4) Auto-detect")
 	fmt.Println()
-	fmt.Println("  Codex installs skills for the Codex CLI, IDE extension, and app.")
+	fmt.Println("  Codex installs skills plus generated custom agents for the CLI, IDE extension, and app.")
 
 	for {
 		value := strings.ToLower(prompt(reader, "  Target [OpenCode]: "))
@@ -249,11 +254,95 @@ func promptComponentToggleForTarget(reader *bufio.Reader, action string, target 
 		return nil, err
 	}
 	if target == "codex" {
-		fmt.Printf("\n  Codex %s uses the skills component only.\n", action)
-		fmt.Printf("  Location: %s\n", kit.CodexSkillsDir())
-		return kit.ComponentSet{kit.ComponentSkills: true}, nil
+		return promptCodexComponentToggle(reader, action)
 	}
 	return promptComponentToggle(reader, action)
+}
+
+func promptCodexComponentToggle(reader *bufio.Reader, action string) (kit.ComponentSet, error) {
+	allComponents := []string{kit.ComponentSkills, kit.ComponentAgents}
+	descriptions := map[string]string{
+		kit.ComponentSkills: "Codex skills in " + kit.CodexSkillsDir(),
+		kit.ComponentAgents: "Codex custom agents in " + kit.CodexAgentsDir(),
+	}
+
+	fmt.Printf("\n  Select Codex components to %s.\n", action)
+	fmt.Println("  Toggle with numbers, or type skills, agents, or full.")
+	fmt.Println()
+
+	defaultOn := kit.ComponentSet{kit.ComponentSkills: true, kit.ComponentAgents: true}
+	if action == "uninstall" {
+		defaultOn = nil
+	}
+	selected := make(kit.ComponentSet)
+	for i, comp := range allComponents {
+		marker := " "
+		if defaultOn != nil && defaultOn.Includes(comp) {
+			marker = "*"
+		}
+		fmt.Printf("    [%s] %d) %-10s %s\n", marker, i+1, comp, descriptions[comp])
+	}
+	fmt.Println()
+
+	for {
+		value := prompt(reader, "  Components: ")
+		if value == "" {
+			if len(selected) == 0 {
+				if defaultOn != nil {
+					return defaultOn, nil
+				}
+				return nil, fmt.Errorf("no components selected")
+			}
+			return selected, nil
+		}
+		if value == "full" || value == "both" {
+			return kit.ComponentSet{kit.ComponentSkills: true, kit.ComponentAgents: true}, nil
+		}
+		if value == "lite" || value == "skills" {
+			return kit.ComponentSet{kit.ComponentSkills: true}, nil
+		}
+		if value == "agents" {
+			return kit.ComponentSet{kit.ComponentAgents: true}, nil
+		}
+
+		numberSet := make(map[int]bool)
+		allNumbers := true
+		for _, part := range strings.Fields(value) {
+			var n int
+			if _, err := fmt.Sscanf(part, "%d", &n); err == nil && n >= 1 && n <= len(allComponents) {
+				numberSet[n] = true
+			} else {
+				allNumbers = false
+				break
+			}
+		}
+
+		if allNumbers && len(numberSet) > 0 {
+			selected = make(kit.ComponentSet)
+			for n := range numberSet {
+				selected[allComponents[n-1]] = true
+			}
+			fmt.Printf("  Selected: %s\n", strings.Join(selected.Names(), ", "))
+			continue
+		}
+
+		parsed, err := parseComponentList(value)
+		if err != nil {
+			fmt.Printf("  %v  Try again.\n", err)
+			continue
+		}
+		for name := range parsed {
+			if name != kit.ComponentSkills && name != kit.ComponentAgents {
+				err = fmt.Errorf("Codex target supports only skills and agents")
+				break
+			}
+		}
+		if err != nil {
+			fmt.Printf("  %v  Try again.\n", err)
+			continue
+		}
+		return parsed, nil
+	}
 }
 
 func promptComponentToggle(reader *bufio.Reader, action string) (kit.ComponentSet, error) {

@@ -1,5 +1,5 @@
 ---
-description: Deep maintainability & code-quality auditor (1k-line rule, code-judo, spaghetti detection). Invokable via `@` or as a subagent via Task.
+description: Deep maintainability and code-quality auditor focused on the 1k-line rule, code-judo, and spaghetti detection.
 mode: subagent
 permission:
   edit: deny
@@ -14,10 +14,10 @@ permission:
 
 Deep structural maintainability auditor. Focuses on ambitious simplification, the 1k-line rule, code-judo opportunities, and elimination of spaghetti / ad-hoc branching.
 
-Invoke this agent in two ways:
+Use this agent in two ways:
 
-1. **Directly** (invoked via `@thermo-nuclear-code-quality-review`): the user just asks you to review. In this case you must first gather context yourself.
-2. **Orchestrated** (via `Task` with `subagent_type: "thermo-nuclear-code-quality-review"`): a parent has already collected the diff and file contents and passes them to you in labeled sections.
+1. **Direct harness invocation**: the user asks this agent to review. In this case you must first gather context yourself.
+2. **Orchestrated subagent invocation**: a parent agent has already collected the diff and file contents and passes them to you in labeled sections.
 
 ## Context Gathering (when invoked directly)
 

@@ -3,6 +3,7 @@ package kit
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -12,6 +13,15 @@ func TestCodexSkillsDir_DefaultsToUserAgentsSkills(t *testing.T) {
 	want := filepath.Join(home, ".agents", "skills")
 	if got != want {
 		t.Fatalf("codexSkillsDirForHome() = %q, want %q", got, want)
+	}
+}
+
+func TestCodexAgentsDir_DefaultsToUserCodexAgents(t *testing.T) {
+	home := t.TempDir()
+	got := codexAgentsDirForHome(home)
+	want := filepath.Join(home, ".codex", "agents")
+	if got != want {
+		t.Fatalf("codexAgentsDirForHome() = %q, want %q", got, want)
 	}
 }
 
@@ -42,9 +52,94 @@ func TestPerformCodexInstall_InstallsSkillsAndExtras(t *testing.T) {
 	}
 }
 
+func TestPerformCodexAgentInstall_GeneratesTomlAgents(t *testing.T) {
+	root := createFakeKitRoot(t)
+	agentsDir := t.TempDir()
+	source := filepath.Join(root, "agents", "ci-watcher.md")
+	if err := os.WriteFile(source, []byte("---\ndescription: Watch CI checks.\nmode: subagent\npermission:\n  edit: deny\n---\n\n# CI watcher\n\nUse gh checks.\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformCodexAgentInstall(CodexAgentInstallOptions{
+		KitRoot:   root,
+		SkillsDir: t.TempDir(),
+		AgentsDir: agentsDir,
+	}); err != nil {
+		t.Fatalf("PerformCodexAgentInstall failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(agentsDir, "ci-watcher.toml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	text := string(data)
+	for _, want := range []string{
+		`name = "ci-watcher"`,
+		`description = "Watch CI checks."`,
+		`sandbox_mode = "read-only"`,
+		`developer_instructions = """`,
+		"Use gh checks.",
+	} {
+		if !strings.Contains(text, want) {
+			t.Fatalf("generated Codex agent missing %q:\n%s", want, text)
+		}
+	}
+}
+
+func TestPerformCodexAgentInstall_CreatesManifestParentForAgentsOnly(t *testing.T) {
+	root := createFakeKitRoot(t)
+	base := t.TempDir()
+	skillsDir := filepath.Join(base, ".agents", "skills")
+	agentsDir := filepath.Join(base, ".codex", "agents")
+
+	if err := PerformCodexAgentInstall(CodexAgentInstallOptions{
+		KitRoot:   root,
+		SkillsDir: skillsDir,
+		AgentsDir: agentsDir,
+	}); err != nil {
+		t.Fatalf("PerformCodexAgentInstall failed: %v", err)
+	}
+
+	if _, err := os.Stat(filepath.Join(agentsDir, "ci-watcher.toml")); err != nil {
+		t.Fatalf("Codex agent should be installed: %v", err)
+	}
+	if _, err := os.Stat(codexManifestPath(skillsDir)); err != nil {
+		t.Fatalf("Codex manifest should be written for agents-only install: %v", err)
+	}
+}
+
+func TestPerformCodexInstall_RewritesCompatibilityForCodexCopy(t *testing.T) {
+	root := createFakeKitRoot(t)
+	skillsDir := t.TempDir()
+	src := filepath.Join(root, "skills", "review-and-ship", "SKILL.md")
+	if err := os.WriteFile(src, []byte("---\nname: review-and-ship\ndescription: Review work.\ncompatibility: opencode\n---\n\n# Review\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+
+	if err := PerformCodexInstall(CodexInstallOptions{
+		KitRoot:   root,
+		SkillsDir: skillsDir,
+		Mode:      "copy",
+	}); err != nil {
+		t.Fatalf("PerformCodexInstall failed: %v", err)
+	}
+
+	data, err := os.ReadFile(filepath.Join(skillsDir, "review-and-ship", "SKILL.md"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	if strings.Contains(string(data), "compatibility: opencode") {
+		t.Fatalf("Codex copy should not remain OpenCode-only:\n%s", string(data))
+	}
+	if !strings.Contains(string(data), "compatibility: codex") {
+		t.Fatalf("Codex copy should be marked Codex-compatible:\n%s", string(data))
+	}
+}
+
 func TestPerformCodexUninstall_RemovesOnlyOwnedSkillPaths(t *testing.T) {
 	root := createFakeKitRoot(t)
 	skillsDir := t.TempDir()
+	agentsDir := t.TempDir()
 	outsideFile := filepath.Join(t.TempDir(), "keep.txt")
 	if err := os.WriteFile(outsideFile, []byte("keep"), 0o644); err != nil {
 		t.Fatal(err)
@@ -71,7 +166,7 @@ func TestPerformCodexUninstall_RemovesOnlyOwnedSkillPaths(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if err := PerformCodexUninstall(skillsDir); err != nil {
+	if err := PerformCodexUninstallSelected(skillsDir, agentsDir, ComponentSet{ComponentSkills: true}); err != nil {
 		t.Fatalf("PerformCodexUninstall failed: %v", err)
 	}
 
@@ -90,8 +185,63 @@ func TestPerformCodexUninstall_RemovesOnlyOwnedSkillPaths(t *testing.T) {
 
 func TestPrintCodexStatus_NoManifest(t *testing.T) {
 	skillsDir := t.TempDir()
-	if err := PrintCodexStatus(skillsDir); err != nil {
+	agentsDir := t.TempDir()
+	if err := PrintCodexStatusWithDirs(skillsDir, agentsDir); err != nil {
 		t.Fatalf("PrintCodexStatus with no manifest should not error: %v", err)
+	}
+}
+
+func TestRefreshCodexSkillsView_UsesMacDeepLink(t *testing.T) {
+	var ranName string
+	var ranArgs []string
+	err := refreshCodexSkillsView("darwin", func(name string) (string, error) {
+		if name == "open" {
+			return "/usr/bin/open", nil
+		}
+		return "", os.ErrNotExist
+	}, func(name string, args ...string) error {
+		ranName = name
+		ranArgs = append([]string{}, args...)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("refreshCodexSkillsView failed: %v", err)
+	}
+	if ranName != "open" || len(ranArgs) != 1 || ranArgs[0] != "codex://skills" {
+		t.Fatalf("ran %q %v, want open codex://skills", ranName, ranArgs)
+	}
+}
+
+func TestRefreshCodexSkillsView_UsesLinuxDeepLink(t *testing.T) {
+	var ranName string
+	var ranArgs []string
+	err := refreshCodexSkillsView("linux", func(name string) (string, error) {
+		if name == "xdg-open" {
+			return "/usr/bin/xdg-open", nil
+		}
+		return "", os.ErrNotExist
+	}, func(name string, args ...string) error {
+		ranName = name
+		ranArgs = append([]string{}, args...)
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("refreshCodexSkillsView failed: %v", err)
+	}
+	if ranName != "xdg-open" || len(ranArgs) != 1 || ranArgs[0] != "codex://skills" {
+		t.Fatalf("ran %q %v, want xdg-open codex://skills", ranName, ranArgs)
+	}
+}
+
+func TestRefreshCodexSkillsView_ReportsUnsupportedPlatform(t *testing.T) {
+	err := refreshCodexSkillsView("windows", func(string) (string, error) {
+		return "", os.ErrNotExist
+	}, func(string, ...string) error {
+		t.Fatal("runner should not be called")
+		return nil
+	})
+	if err == nil {
+		t.Fatal("expected unsupported platform error")
 	}
 }
 

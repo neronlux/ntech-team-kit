@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"log"
 	"os"
+	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strconv"
 	"strings"
 )
@@ -12,7 +14,16 @@ import (
 type CodexInstallOptions struct {
 	KitRoot   string
 	SkillsDir string
+	AgentsDir string
 	Mode      string // "copy" or "link"
+	DryRun    bool
+	Verbose   bool
+}
+
+type CodexAgentInstallOptions struct {
+	KitRoot   string
+	SkillsDir string
+	AgentsDir string
 	DryRun    bool
 	Verbose   bool
 }
@@ -29,12 +40,27 @@ func codexSkillsDirForHome(home string) string {
 	return filepath.Join(home, ".agents", "skills")
 }
 
+func CodexAgentsDir() string {
+	if dir := os.Getenv("NTECH_TEAM_KIT_CODEX_AGENTS_DIR"); dir != "" {
+		return dir
+	}
+	home, _ := os.UserHomeDir()
+	return codexAgentsDirForHome(home)
+}
+
+func codexAgentsDirForHome(home string) string {
+	return filepath.Join(home, ".codex", "agents")
+}
+
 func PerformCodexInstall(opts CodexInstallOptions) error {
 	if opts.KitRoot == "" {
 		return fmt.Errorf("kit root is required")
 	}
 	if opts.SkillsDir == "" {
 		return fmt.Errorf("Codex skills dir is required")
+	}
+	if opts.AgentsDir == "" {
+		opts.AgentsDir = CodexAgentsDir()
 	}
 	if opts.Mode == "" {
 		opts.Mode = "copy"
@@ -45,9 +71,26 @@ func PerformCodexInstall(opts CodexInstallOptions) error {
 
 	manifestPath := codexManifestPath(opts.SkillsDir)
 	existingManifest, _ := readManifest(manifestPath, filepath.Dir(opts.SkillsDir))
-	existingManifest = filterOwnedCodexManifestEntries(opts.SkillsDir, existingManifest)
+	existingManifest = filterOwnedCodexManifestEntries(opts.SkillsDir, opts.AgentsDir, existingManifest)
 
 	var manifestEntries []manifestEntry
+	installSkillFile := func(src, dest string) error {
+		if opts.DryRun {
+			if opts.Verbose {
+				fmt.Printf("[dry-run] write Codex skill -> %s\n", dest)
+			}
+			return nil
+		}
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("source file missing from kit root (%s): %s", opts.KitRoot, src)
+		}
+		if err := writeFileAtomic(dest, codexSkillMarkdown(data), 0o644); err != nil {
+			return fmt.Errorf("failed to write Codex skill %s: %w", dest, err)
+		}
+		manifestEntries = append(manifestEntries, manifestEntry{Component: ComponentSkills, Path: dest})
+		return nil
+	}
 	installFile := func(src, dest string) error {
 		if opts.DryRun {
 			if opts.Verbose {
@@ -76,7 +119,7 @@ func PerformCodexInstall(opts CodexInstallOptions) error {
 	for _, skill := range skills {
 		destDir := filepath.Join(opts.SkillsDir, skill)
 		skillSrc := filepath.Join(opts.KitRoot, "skills", skill, "SKILL.md")
-		if err := installFile(
+		if err := installSkillFile(
 			skillSrc,
 			filepath.Join(destDir, "SKILL.md"),
 		); err != nil {
@@ -112,7 +155,60 @@ func PerformCodexInstall(opts CodexInstallOptions) error {
 	return nil
 }
 
+func PerformCodexAgentInstall(opts CodexAgentInstallOptions) error {
+	if opts.KitRoot == "" {
+		return fmt.Errorf("kit root is required")
+	}
+	if opts.SkillsDir == "" {
+		opts.SkillsDir = CodexSkillsDir()
+	}
+	if opts.AgentsDir == "" {
+		opts.AgentsDir = CodexAgentsDir()
+	}
+
+	manifestPath := codexManifestPath(opts.SkillsDir)
+	existingManifest, _ := readManifest(manifestPath, filepath.Dir(opts.SkillsDir))
+	existingManifest = filterOwnedCodexManifestEntries(opts.SkillsDir, opts.AgentsDir, existingManifest)
+
+	var manifestEntries []manifestEntry
+	for _, agent := range agents {
+		src := filepath.Join(opts.KitRoot, "agents", agent+".md")
+		data, err := os.ReadFile(src)
+		if err != nil {
+			return fmt.Errorf("source file missing from kit root (%s): %s", opts.KitRoot, src)
+		}
+		dest := filepath.Join(opts.AgentsDir, agent+".toml")
+		if opts.DryRun {
+			if opts.Verbose {
+				fmt.Printf("[dry-run] write Codex agent -> %s\n", dest)
+			}
+		} else if err := writeFileAtomic(dest, codexAgentTOML(agent, data), 0o644); err != nil {
+			return fmt.Errorf("failed to write Codex agent %s: %w", dest, err)
+		}
+		manifestEntries = append(manifestEntries, manifestEntry{Component: ComponentAgents, Path: dest})
+	}
+
+	if !opts.DryRun && len(manifestEntries) > 0 {
+		merged := mergeManifestEntries(existingManifest, manifestEntries, ComponentSet{ComponentAgents: true})
+		if err := writeManifest(manifestPath, merged); err != nil {
+			return fmt.Errorf("failed to write Codex manifest: %w", err)
+		}
+	}
+
+	if !opts.DryRun {
+		printBanner()
+		fmt.Printf("  Codex agents install complete\n")
+		fmt.Printf("  agents:     %d\n", len(agents))
+		fmt.Printf("  location:   %s\n", opts.AgentsDir)
+	}
+	return nil
+}
+
 func PerformCodexUninstall(skillsDir string) error {
+	return PerformCodexUninstallSelected(skillsDir, CodexAgentsDir(), nil)
+}
+
+func PerformCodexUninstallSelected(skillsDir string, agentsDir string, components ComponentSet) error {
 	manifest := codexManifestPath(skillsDir)
 	entries, err := readManifest(manifest, filepath.Dir(skillsDir))
 	if err != nil {
@@ -121,10 +217,15 @@ func PerformCodexUninstall(skillsDir string) error {
 	}
 
 	removed := 0
-	ownedPaths := codexOwnedManifestPaths(skillsDir)
+	var remaining []manifestEntry
+	ownedPaths := codexOwnedManifestPaths(skillsDir, agentsDir)
 	for _, entry := range entries {
 		if !isOwnedManifestEntry(ownedPaths, entry) {
 			log.Printf("[ntech-team-kit] skipping unsafe Codex manifest entry: %s", entry.Path)
+			continue
+		}
+		if !components.Includes(entry.Component) {
+			remaining = append(remaining, entry)
 			continue
 		}
 		if _, err := os.Stat(entry.Path); err == nil {
@@ -134,13 +235,28 @@ func PerformCodexUninstall(skillsDir string) error {
 		}
 	}
 
-	cleanupCodexSkillDirs(skillsDir)
-	_ = os.Remove(manifest)
-	log.Printf("[ntech-team-kit] uninstalled %d Codex skill files", removed)
+	if components.Includes(ComponentSkills) {
+		cleanupCodexSkillDirs(skillsDir)
+	}
+	if components.Includes(ComponentAgents) {
+		cleanupCodexAgentDirs(agentsDir)
+	}
+
+	if len(remaining) == 0 {
+		_ = os.Remove(manifest)
+	} else if err := writeManifest(manifest, remaining); err != nil {
+		return fmt.Errorf("failed to update Codex manifest: %w", err)
+	}
+
+	log.Printf("[ntech-team-kit] uninstalled %d Codex files", removed)
 	return nil
 }
 
 func PrintCodexStatus(skillsDir string) error {
+	return PrintCodexStatusWithDirs(skillsDir, CodexAgentsDir())
+}
+
+func PrintCodexStatusWithDirs(skillsDir string, agentsDir string) error {
 	manifest := codexManifestPath(skillsDir)
 
 	entries, err := readManifest(manifest, filepath.Dir(skillsDir))
@@ -148,7 +264,7 @@ func PrintCodexStatus(skillsDir string) error {
 		log.Printf("[ntech-team-kit] Codex not installed (no manifest at %s)", manifest)
 		return nil
 	}
-	entries = filterOwnedCodexManifestEntries(skillsDir, entries)
+	entries = filterOwnedCodexManifestEntries(skillsDir, agentsDir, entries)
 
 	log.Printf("[ntech-team-kit] Codex: %d files tracked in manifest", len(entries))
 
@@ -168,31 +284,60 @@ func PrintCodexStatus(skillsDir string) error {
 	return nil
 }
 
+func RefreshCodexSkillsView() error {
+	return refreshCodexSkillsView(runtime.GOOS, exec.LookPath, runCodexRefreshCommand)
+}
+
+func refreshCodexSkillsView(goos string, lookPath func(string) (string, error), run func(string, ...string) error) error {
+	switch goos {
+	case "darwin":
+		if _, err := lookPath("open"); err != nil {
+			return fmt.Errorf("open command not found")
+		}
+		return run("open", "codex://skills")
+	case "linux":
+		if _, err := lookPath("xdg-open"); err != nil {
+			return fmt.Errorf("xdg-open command not found")
+		}
+		return run("xdg-open", "codex://skills")
+	default:
+		return fmt.Errorf("Codex app refresh is not supported on %s", goos)
+	}
+}
+
+func runCodexRefreshCommand(name string, args ...string) error {
+	cmd := exec.Command(name, args...)
+	return cmd.Start()
+}
+
 func codexManifestPath(skillsDir string) string {
 	return filepath.Join(filepath.Dir(skillsDir), ".ntech-team-kit-codex-manifest")
 }
 
-func codexOwnedManifestPaths(skillsDir string) map[string]string {
+func codexOwnedManifestPaths(skillsDir string, agentsDir string) map[string]string {
 	paths := map[string]string{}
-	add := func(path string) {
+	add := func(component string, path string) {
 		abs, err := absClean(path)
 		if err == nil {
-			paths[abs] = ComponentSkills
+			paths[abs] = component
 		}
 	}
 	for _, skill := range skills {
 		destDir := filepath.Join(skillsDir, skill)
-		add(filepath.Join(destDir, "SKILL.md"))
+		add(ComponentSkills, filepath.Join(destDir, "SKILL.md"))
 		for _, asset := range skillExtras[skill] {
-			add(filepath.Join(destDir, asset))
+			add(ComponentSkills, filepath.Join(destDir, asset))
 		}
-		add(filepath.Join(destDir, "agents", "openai.yaml"))
+		add(ComponentSkills, filepath.Join(destDir, "agents", "openai.yaml"))
+	}
+	for _, agent := range agents {
+		add(ComponentAgents, filepath.Join(agentsDir, agent+".toml"))
 	}
 	return paths
 }
 
-func filterOwnedCodexManifestEntries(skillsDir string, entries []manifestEntry) []manifestEntry {
-	ownedPaths := codexOwnedManifestPaths(skillsDir)
+func filterOwnedCodexManifestEntries(skillsDir string, agentsDir string, entries []manifestEntry) []manifestEntry {
+	ownedPaths := codexOwnedManifestPaths(skillsDir, agentsDir)
 	filtered := make([]manifestEntry, 0, len(entries))
 	for _, entry := range entries {
 		if isOwnedManifestEntry(ownedPaths, entry) {
@@ -211,6 +356,10 @@ func cleanupCodexSkillDirs(skillsDir string) {
 	}
 	removeIfEmpty(skillsDir)
 	removeIfEmpty(filepath.Dir(skillsDir))
+}
+
+func cleanupCodexAgentDirs(agentsDir string) {
+	removeIfEmpty(agentsDir)
 }
 
 func installGeneratedCodexMetadata(skill string, skillSrc string, dest string, dryRun bool, verbose bool) error {
@@ -236,6 +385,86 @@ func installGeneratedCodexMetadata(skill string, skillSrc string, dest string, d
 		return fmt.Errorf("failed to write generated Codex metadata %s: %w", dest, err)
 	}
 	return nil
+}
+
+func codexSkillMarkdown(data []byte) []byte {
+	lines := strings.Split(string(data), "\n")
+	inFrontmatter := false
+	frontmatterClosed := false
+	replaced := false
+
+	for i, line := range lines {
+		if i == 0 && line == "---" {
+			inFrontmatter = true
+			continue
+		}
+		if inFrontmatter && line == "---" {
+			frontmatterClosed = true
+			if !replaced {
+				lines = append(lines[:i], append([]string{"compatibility: codex"}, lines[i:]...)...)
+			}
+			break
+		}
+		if inFrontmatter && strings.HasPrefix(line, "compatibility:") {
+			lines[i] = "compatibility: codex"
+			replaced = true
+		}
+	}
+
+	if !inFrontmatter || !frontmatterClosed {
+		return data
+	}
+	return []byte(strings.Join(lines, "\n"))
+}
+
+func codexAgentTOML(name string, data []byte) []byte {
+	frontmatter, body := splitMarkdownFrontmatter(data)
+	description := frontmatter["description"]
+	if description == "" {
+		description = "ntech-team-kit " + name + " agent."
+	}
+	instructions := "This Codex custom agent was generated from ntech-team-kit agents/" + name + ".md.\n" +
+		"Use Codex custom-agent behavior; ignore OpenCode-only markdown frontmatter, @-mentions, and Task tool wording in the source instructions.\n\n" +
+		strings.TrimSpace(body) + "\n"
+
+	toml := "name = " + strconv.Quote(name) + "\n" +
+		"description = " + strconv.Quote(description) + "\n" +
+		"sandbox_mode = \"read-only\"\n" +
+		"developer_instructions = \"\"\"\n" +
+		escapeTOMLMultilineBasicString(instructions) +
+		"\"\"\"\n"
+	return []byte(toml)
+}
+
+func splitMarkdownFrontmatter(data []byte) (map[string]string, string) {
+	text := string(data)
+	if !strings.HasPrefix(text, "---\n") {
+		return map[string]string{}, text
+	}
+	parts := strings.SplitN(strings.TrimPrefix(text, "---\n"), "\n---\n", 2)
+	if len(parts) != 2 {
+		return map[string]string{}, text
+	}
+
+	frontmatter := map[string]string{}
+	for _, line := range strings.Split(parts[0], "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "-") || strings.HasPrefix(line, "#") {
+			continue
+		}
+		key, value, ok := strings.Cut(line, ":")
+		if !ok {
+			continue
+		}
+		frontmatter[strings.TrimSpace(key)] = strings.Trim(strings.TrimSpace(value), `"'`)
+	}
+	return frontmatter, parts[1]
+}
+
+func escapeTOMLMultilineBasicString(value string) string {
+	value = strings.ReplaceAll(value, `\`, `\\`)
+	value = strings.ReplaceAll(value, `"""`, `\"\"\"`)
+	return value
 }
 
 func writeFileAtomic(dest string, data []byte, perm os.FileMode) error {

@@ -17,6 +17,8 @@ var (
 	kitRootFlag string
 )
 
+var refreshCodexSkillsView = kit.RefreshCodexSkillsView
+
 func main() {
 	flag.StringVar(&kitRootFlag, "root", "", "Path to ntech-team-kit directory (overrides auto-detection)")
 	flag.Parse()
@@ -232,20 +234,45 @@ func performInstallTarget(root string, mode string, components kit.ComponentSet,
 		}
 	}
 	if kit.TargetIncludesCodex(target) {
-		if !components.Includes(kit.ComponentSkills) && target == "codex" {
-			return fmt.Errorf("Codex target only supports skills; include the skills component")
+		if !components.Includes(kit.ComponentSkills) && !components.Includes(kit.ComponentAgents) && target == "codex" {
+			return fmt.Errorf("Codex target supports skills and agents; include at least one")
 		}
 		if components.Includes(kit.ComponentSkills) {
 			if err := kit.PerformCodexInstall(kit.CodexInstallOptions{
 				KitRoot:   root,
 				SkillsDir: kit.CodexSkillsDir(),
+				AgentsDir: kit.CodexAgentsDir(),
 				Mode:      mode,
+			}); err != nil {
+				return err
+			}
+			maybeRefreshCodexSkillsView(target, components)
+		}
+		if components.Includes(kit.ComponentAgents) {
+			if err := kit.PerformCodexAgentInstall(kit.CodexAgentInstallOptions{
+				KitRoot:   root,
+				SkillsDir: kit.CodexSkillsDir(),
+				AgentsDir: kit.CodexAgentsDir(),
 			}); err != nil {
 				return err
 			}
 		}
 	}
 	return nil
+}
+
+func maybeRefreshCodexSkillsView(target string, components kit.ComponentSet) {
+	if !kit.TargetIncludesCodex(target) || !components.Includes(kit.ComponentSkills) {
+		return
+	}
+	if os.Getenv("NTECH_TEAM_KIT_CODEX_SKIP_APP_REFRESH") == "1" {
+		return
+	}
+	if err := refreshCodexSkillsView(); err != nil {
+		fmt.Fprintf(os.Stderr, "Codex app refresh skipped: %v\n", err)
+		return
+	}
+	fmt.Println("Codex app: opened Skills view")
 }
 
 func performUninstallTarget(components kit.ComponentSet, target string) error {
@@ -259,13 +286,11 @@ func performUninstallTarget(components kit.ComponentSet, target string) error {
 		}
 	}
 	if kit.TargetIncludesCodex(target) {
-		if !components.Includes(kit.ComponentSkills) && target == "codex" {
-			return fmt.Errorf("Codex target only supports skills; include the skills component")
+		if !components.Includes(kit.ComponentSkills) && !components.Includes(kit.ComponentAgents) && target == "codex" {
+			return fmt.Errorf("Codex target supports skills and agents; include at least one")
 		}
-		if components.Includes(kit.ComponentSkills) {
-			if err := kit.PerformCodexUninstall(kit.CodexSkillsDir()); err != nil {
-				return err
-			}
+		if components.Includes(kit.ComponentSkills) || components.Includes(kit.ComponentAgents) {
+			return kit.PerformCodexUninstallSelected(kit.CodexSkillsDir(), kit.CodexAgentsDir(), components)
 		}
 	}
 	return nil
@@ -295,7 +320,7 @@ func performStatusTarget(target string) error {
 	}
 	if kit.TargetIncludesCodex(target) {
 		fmt.Println("Codex status:")
-		if err := kit.PrintCodexStatus(kit.CodexSkillsDir()); err != nil {
+		if err := kit.PrintCodexStatusWithDirs(kit.CodexSkillsDir(), kit.CodexAgentsDir()); err != nil {
 			return err
 		}
 	}
@@ -349,6 +374,8 @@ Environment variables:
   NTECH_TEAM_KIT_ROOT   Same as --root
   OPENCODE_CONFIG_DIR   Override ~/.config/opencode location
   NTECH_TEAM_KIT_CODEX_SKILLS_DIR   Override ~/.agents/skills for Codex skills
+  NTECH_TEAM_KIT_CODEX_AGENTS_DIR   Override ~/.codex/agents for Codex agents
+  NTECH_TEAM_KIT_CODEX_SKIP_APP_REFRESH=1   Skip opening the Codex Skills view
 
 Examples:
   ntech-team-kit install

@@ -6,24 +6,35 @@
 
 A portable, production-grade collection of skills, agents, commands, and rules that bring [Cursor Team Kit](https://github.com/cursor/plugins/tree/main/cursor-team-kit) workflows to [OpenCode](https://opencode.ai) and [Codex](https://developers.openai.com/codex).
 
-If you like rigorous internal workflows for code review, CI loops, and clean shipping processes, this kit makes them easy to install for OpenCode and as Codex skills.
+If you like rigorous internal workflows for code review, CI loops, and clean shipping processes, this kit makes them easy to install for OpenCode and Codex.
 
 ## What's included
 
 | Component | Count | Description |
 |-----------|-------|-------------|
 | Skills | 18 | On-demand workflows for CI, code review, shipping, verification, and code quality; installable for OpenCode or Codex |
-| Agents | 2 | Specialized OpenCode subagents, invoked via `@agent-name` |
+| Agents | 2 | Specialized subagents; OpenCode gets markdown agents, Codex gets generated custom-agent TOML |
 | Commands | 18 | OpenCode `/command` shortcuts for every skill (1:1 with skills) |
 | Rules | 2 | OpenCode coding standards (no inline imports, exhaustive TypeScript switches) |
 | Plugin | 1 | OpenCode background CI watcher for proactive PR monitoring |
 
-OpenCode content installs into `~/.config/opencode/`. Codex skills install into `~/.agents/skills/`, the user-level skill location used by the Codex CLI, IDE extension, and app.
+OpenCode content installs into `~/.config/opencode/`. Codex skills install into `~/.agents/skills/` and Codex custom agents install into `~/.codex/agents/`.
+
+## AI harness support
+
+| Harness | Installer target | What users get | How to invoke |
+|---------|------------------|----------------|---------------|
+| OpenCode CLI/TUI | `--target opencode` | Skills, markdown agents, slash commands, rules, config, and the optional CI watcher plugin | `/review-and-ship`, `/loop-on-ci`, `@thermo-nuclear-code-quality-review` |
+| Codex CLI | `--target codex` | Codex-compatible skill copies plus generated custom-agent TOML | `$review-and-ship`, `/skills`, or ask Codex to use a named custom agent |
+| Codex app | `--target codex` | The same skills and custom agents, with generated `agents/openai.yaml` metadata for the Skills view | Type `$` in the composer or pick enabled skills from the slash command list |
+| Codex IDE extension | `--target codex` | The same shared Codex skills in `~/.agents/skills` | Use Codex skill invocation from the extension; the installer also places generated agents in the shared Codex location for harnesses that surface custom agents |
+
+The installer keeps one source tree and emits the right shape for each harness. OpenCode gets native markdown agents and commands. Codex gets rewritten skill frontmatter, app metadata, and TOML custom agents with conservative read-only defaults.
 
 ## Prerequisites
 
 - [OpenCode](https://opencode.ai) or [Codex](https://developers.openai.com/codex) installed
-- [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (`gh auth login`)
+- [GitHub CLI (`gh`)](https://cli.github.com/) installed and authenticated (`gh auth login`) for GitHub-dependent workflows such as CI, PR review, and shipping
 - Git configured with your user email
 
 Some skills require project-specific tools (e.g. `run-smoke-tests` needs Playwright).
@@ -83,7 +94,7 @@ Running `ntech-team-kit` with no arguments opens a guided menu:
 
     1) Install full pack (choose target)
     2) Install lite pack (choose target)
-    3) Install agents only (OpenCode)
+    3) Install agents only (choose target)
     4) Install skills only (choose target)
     5) Custom install  (choose target/components)
     6) Custom uninstall (choose target/components)
@@ -93,9 +104,9 @@ Running `ntech-team-kit` with no arguments opens a guided menu:
     0) Quit
 ```
 
-Target-aware actions ask whether to use OpenCode, Codex, both, or auto-detection. Codex installs the skills component for the Codex CLI, IDE extension, and app; OpenCode remains the target for agents, commands, rules, plugin, and config. The menu loops so you can run more than one action per session. After each action it asks whether to continue or exit.
+Target-aware actions ask whether to use OpenCode, Codex, both, or auto-detection. Codex installs skills and generated custom agents for the Codex CLI, IDE extension, and app; OpenCode remains the target for commands, rules, plugin, and config. The menu loops so you can run more than one action per session. After each action it asks whether to continue or exit.
 
-**Custom install/uninstall** shows a numbered component picker for OpenCode and both-target actions. Codex-only actions use the skills component automatically:
+**Custom install/uninstall** shows a numbered component picker. OpenCode exposes every component:
 
 ```
   Select components to install.
@@ -113,6 +124,19 @@ Target-aware actions ask whether to use OpenCode, Codex, both, or auto-detection
 
 Type numbers (`1 3 5`), comma-separated names (`skills,commands`), or a pack name (`full`, `lite`). Press Enter to confirm. Uninstall asks for confirmation before removing files.
 
+Codex exposes the components it can consume directly:
+
+```
+  Select Codex components to install.
+
+    [*] 1) skills     Codex skills in ~/.agents/skills
+    [*] 2) agents     Codex custom agents in ~/.codex/agents
+
+  Components:
+```
+
+For Codex, `full` means skills plus generated custom agents, `skills` installs only skills, and `agents` installs only generated custom agents.
+
 When you pipe stdin (not a terminal), the interactive mode runs the default action (full install) and exits, so it works in CI scripts:
 
 ```bash
@@ -127,6 +151,8 @@ echo | ntech-team-kit    # equivalent to: ntech-team-kit install
 - `NTECH_TEAM_KIT_ROOT` — environment variable form of `--root`
 - `OPENCODE_CONFIG_DIR` — override `~/.config/opencode` location
 - `NTECH_TEAM_KIT_CODEX_SKILLS_DIR` — override the Codex skill destination, defaulting to `~/.agents/skills`
+- `NTECH_TEAM_KIT_CODEX_AGENTS_DIR` — override the Codex agent destination, defaulting to `~/.codex/agents`
+- `NTECH_TEAM_KIT_CODEX_SKIP_APP_REFRESH=1` — skip opening the Codex Skills view after Codex installs
 
 **Install options:**
 
@@ -167,9 +193,9 @@ ntech-team-kit uninstall --target codex
 ntech-team-kit uninstall --only agents
 ```
 
-Codex currently receives the `skills` component. OpenCode receives the full component model: skills, agents, commands, rules, plugin, and config.
+Codex receives target-specific `skills` and `agents`. OpenCode receives the full component model: skills, agents, commands, rules, plugin, and config. Codex ignores OpenCode-only commands, rules, plugin, and config.
 
-When installing for Codex, the installer copies each skill to `~/.agents/skills/<skill-name>/` with its extra assets and generated `agents/openai.yaml` metadata for a cleaner Codex app experience.
+When installing for Codex, the installer copies each skill to `~/.agents/skills/<skill-name>/`, rewrites the installed copy as Codex-compatible, adds extra assets and generated `agents/openai.yaml` metadata, generates Codex custom agents in `~/.codex/agents/*.toml`, and opens the Codex Skills view via `codex://skills` on macOS or Linux. If Codex does not show a new skill immediately, restart the Codex harness.
 
 ### Keeping up to date
 
@@ -196,7 +222,7 @@ cd ntech-team-kit && git pull && ntech-team-kit update
 
 `ntech-team-kit update` checks GitHub for a newer CLI version and refreshes content from the current kit tree. Use `ntech-team-kit update --target codex` or `--target both` to refresh Codex skills too.
 
-`ntech-team-kit doctor` detects OpenCode, Codex CLI, and Codex GUI installs on macOS and Linux, then prints a one-line update hint at most once per day.
+`ntech-team-kit doctor` detects OpenCode, Codex CLI, and Codex GUI installs on macOS and Linux, reports OpenCode and Codex install manifests, warns about missing GitHub CLI/auth for GitHub-dependent skills, then prints a one-line update hint at most once per day.
 
 ## Quick start
 
@@ -222,7 +248,7 @@ Watches PR checks via `gh pr checks`, diagnoses failures, applies fixes, and ite
 @thermo-nuclear-code-quality-review review the current branch
 ```
 
-The "thermo-nuclear" maintainability audit: 1k-line rule, code-judo moves, spaghetti detection, and ambitious structural simplification. Invokable via `@`.
+The "thermo-nuclear" maintainability audit: 1k-line rule, code-judo moves, spaghetti detection, and ambitious structural simplification. In OpenCode, invoke it with `@thermo-nuclear-code-quality-review` or `/thermo-nuclear-code-quality-review`. In Codex, invoke the skill with `$thermo-nuclear-code-quality-review` or ask Codex to use the generated custom agent for a dedicated maintainability review.
 
 ### Verify a claim with evidence
 
@@ -267,7 +293,7 @@ Skills load on demand when invoked via the OpenCode `skill` tool, an OpenCode `/
 
 ## Agents
 
-Both agents are invokable via `@agent-name` in OpenCode.
+OpenCode receives markdown agents that are invokable via `@agent-name`. Codex receives generated TOML custom agents in `~/.codex/agents`; ask Codex to use the named custom agent when you want a dedicated subagent run. Codex currently surfaces custom-agent activity in the CLI and app.
 
 | Agent | Description |
 |-------|-------------|
@@ -276,7 +302,7 @@ Both agents are invokable via `@agent-name` in OpenCode.
 
 ## Commands
 
-Type `/` in OpenCode to see available commands:
+Commands are OpenCode-only. Type `/` in OpenCode to see available commands. Codex users should invoke the matching skill with `$skill-name` or from `/skills`.
 
 | Command | Skill | What it does |
 |---------|-------|--------------|
@@ -345,7 +371,7 @@ The CLI is a self-contained Go program (`cmd/ntech-team-kit/` + `internal/kit/`)
 - **Kit root resolution** — `NTECH_TEAM_KIT_ROOT` env var, compiled ldflags (Homebrew), or auto-detection from binary location
 - **Atomic file writes** — copies content via temp + rename to handle symlink edge cases
 - **Atomic manifest** — collects the installed file list in memory and writes it atomically at the end of each install
-- **Doctor checks** — validates OpenCode, Codex CLI/GUI, `gh`, authentication, kit layout, and manifest integrity
+- **Doctor checks** — validates OpenCode, Codex CLI/GUI, kit layout, and OpenCode/Codex manifest integrity; missing `gh` auth is a warning for GitHub-dependent skills
 
 ## Differences from cursor-team-kit
 
@@ -373,7 +399,7 @@ bun install                     # Install dev dependencies
 bun run typecheck               # TypeScript type checking
 bun run build:plugin            # Build the CI watcher plugin
 go build ./cmd/ntech-team-kit   # Build the CLI
-go test ./...                   # Run Go tests (29 tests)
+go test ./...                   # Run Go tests
 bun run test                    # Full suite: typecheck + build + Go tests
 bun run vale                    # Lint documentation prose
 ```

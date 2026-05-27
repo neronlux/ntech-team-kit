@@ -69,6 +69,54 @@ func TestCheckOpenCodeReportsDetectedPath(t *testing.T) {
 	}
 }
 
+func TestCheckGhCLIReportsMissingAsOptional(t *testing.T) {
+	r := checkGhCLIWith(func(string) (string, error) {
+		return "", os.ErrNotExist
+	})
+
+	if r.Passed {
+		t.Fatal("missing gh should not pass")
+	}
+	if !r.Optional {
+		t.Fatal("missing gh should be a warning, not a hard doctor failure")
+	}
+}
+
+func TestCheckGhAuthFailureIsOptional(t *testing.T) {
+	r := checkGhAuthResult(nil, os.ErrPermission)
+
+	if r.Passed {
+		t.Fatal("failed gh auth should not pass")
+	}
+	if !r.Optional {
+		t.Fatal("failed gh auth should be a warning, not a hard doctor failure")
+	}
+}
+
+func TestCheckInstallManifestsReportsCodexOnlyInstall(t *testing.T) {
+	base := t.TempDir()
+	skillsDir := filepath.Join(base, ".agents", "skills")
+	agentsDir := filepath.Join(base, ".codex", "agents")
+	if err := os.MkdirAll(filepath.Join(skillsDir, skills[0]), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	skillFile := filepath.Join(skillsDir, skills[0], "SKILL.md")
+	if err := os.WriteFile(skillFile, []byte("# skill"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := writeManifest(codexManifestPath(skillsDir), []manifestEntry{{Component: ComponentSkills, Path: skillFile}}); err != nil {
+		t.Fatal(err)
+	}
+
+	r := checkInstallManifests(filepath.Join(base, "opencode"), skillsDir, agentsDir)
+	if !r.Passed {
+		t.Fatalf("Codex-only install manifest should pass: %s", r.Message)
+	}
+	if !strings.Contains(r.Message, "Codex: 1 files") {
+		t.Fatalf("expected Codex manifest summary, got %q", r.Message)
+	}
+}
+
 func TestCheckCodexCLIDetectsPathBinary(t *testing.T) {
 	r := checkCodexCLIWith(func(name string) (string, error) {
 		if name == "codex" {
